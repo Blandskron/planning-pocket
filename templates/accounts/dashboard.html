@@ -1,34 +1,30 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="panel">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
     <h2>Dashboard</h2>
-    <p>Welcome, {{ user.username }}!</p>
+    <a href="{% url 'create_room' %}" style="display:inline-flex; align-items:center; background-color:var(--primary); color:var(--primary-text); padding:0.625rem 1.25rem; border-radius:var(--radius-md); text-decoration:none; font-weight:600; box-shadow:var(--shadow-sm); transition:transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='var(--shadow-md)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)';">Create New Room</a>
 </div>
 
-<div class="room-layout" style="grid-template-columns: 1fr;">
-    <div class="panel">
-        <h3>Room Actions</h3>
-        <a href="{% url 'create_room' %}" style="display:inline-block; background-color:var(--primary); color:white; padding:0.5rem 1rem; border-radius:0.375rem; text-decoration:none; font-weight:600;">Create New Room</a>
-    </div>
-
-    <div class="panel">
-        <h3>Your Rooms</h3>
-        <ul class="issue-list">
-            {% for room in rooms %}
-                <li>
-                    <div>
-                        <strong>{{ room.name }}</strong> 
-                        <span style="color:var(--text-muted); font-size:0.875rem; margin-left:0.5rem;">({{ room.status }})</span>
+<div class="panel">
+    <h3>Your Rooms</h3>
+    <ul class="issue-list">
+        {% for room in rooms %}
+            <li style="padding: 1rem 1.5rem;">
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <strong style="font-size:1rem;">{{ room.name }}</strong> 
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Created on {{ room.created_at|date:"M d, Y" }}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap: 1rem;">
+                    <div class="vote-status {% if room.status == 'active' %}status-voted{% else %}status-thinking{% endif %}">
+                        {{ room.status|title }}
                     </div>
-                    <div>
-                        <a href="{% url 'room_detail' room.public_id %}" style="text-decoration:none; margin-right: 1rem;">Enter Room</a>
-                        <span style="font-family:monospace; background:var(--bg-color); padding:0.25rem; border-radius:0.25rem;">ID: {{ room.public_id }}</span>
-                    </div>
-                </li>
-            {% empty %}
-                <li style="justify-content: center; color: var(--text-muted);">No rooms found.</li>
-            {% endfor %}
-        </ul>
-    </div>
+                    <span style="font-family:monospace; font-size:0.875rem; background:var(--bg-color); padding:0.25rem 0.5rem; border-radius:var(--radius-md); border:1px solid var(--border-color);">{{ room.public_id }}</span>
+                    <a href="{% url 'room_detail' room.public_id %}" style="text-decoration:none; color:var(--accent); font-weight:600;">Enter &rarr;</a>
+                </div>
+            </li>
+        {% empty %}
+            <li style="justify-content: center; color: var(--text-muted); padding: 3rem;">You haven't created any rooms yet.</li>
+        {% endfor %}
+    </ul>
 </div>
 {% endblock %}

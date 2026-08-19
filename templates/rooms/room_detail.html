@@ -91,7 +91,10 @@
             <div class="participants-grid" id="participants-list">
                 {% for p in participants %}
                     <div class="participant-card" id="participant-{{ p.id }}">
-                        <div class="participant-name">{{ p.display_name }}</div>
+                        <div class="participant-info">
+                            <div class="participant-avatar">{{ p.display_name|make_list|first|upper }}</div>
+                            <div class="participant-name">{{ p.display_name }}</div>
+                        </div>
                         <div id="vote-status-{{ p.id }}" class="vote-status {% if p.current_vote and room.voting_status == 'revealed' %}status-revealed{% elif p.current_vote %}status-voted{% else %}status-thinking{% endif %}">
                             {% if p.current_vote and room.voting_status == 'revealed' %}
                                 {{ p.current_vote }}
@@ -153,7 +156,10 @@
                         item.className = 'participant-card';
                         item.id = 'participant-' + data.participant.id;
                         item.innerHTML = `
-                            <div class="participant-name">${data.participant.display_name}</div>
+                            <div class="participant-info">
+                                <div class="participant-avatar">${data.participant.display_name.charAt(0).toUpperCase()}</div>
+                                <div class="participant-name">${data.participant.display_name}</div>
+                            </div>
                             <div id="vote-status-${data.participant.id}" class="vote-status status-thinking">Thinking...</div>
                         `;
                         list.appendChild(item);
