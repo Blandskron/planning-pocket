@@ -7,7 +7,14 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
-load_dotenv(BASE_DIR / '.env')
+# It checks local .env first, then Render's standard secret path
+local_env = BASE_DIR / '.env'
+render_env = Path('/etc/secrets/.env')
+
+if local_env.exists():
+    load_dotenv(local_env)
+elif render_env.exists():
+    load_dotenv(render_env)
 
 # Quick-start development settings - unsuitable for production
 # SECURITY WARNING: keep the secret key used in production secret!

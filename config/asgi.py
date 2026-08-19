@@ -19,6 +19,25 @@ django_asgi_app = get_asgi_application()
 
 import rooms.routing  # noqa: E402
 
+# Auto-create superuser if credentials are in environment
+from django.contrib.auth import get_user_model  # noqa: E402
+User = get_user_model()
+su_username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
+su_email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
+su_password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+
+if su_username and su_password:
+    try:
+        if not User.objects.filter(username=su_username).exists():
+            User.objects.create_superuser(
+                username=su_username,
+                email=su_email,
+                password=su_password
+            )
+            print(f"Superuser '{su_username}' created successfully.")
+    except Exception as e:
+        print(f"Failed to auto-create superuser: {e}")
+
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AuthMiddlewareStack(
