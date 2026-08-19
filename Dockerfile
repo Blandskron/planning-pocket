@@ -23,6 +23,14 @@ COPY . /app/
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
+# Expose the port
 EXPOSE 8000
 
+# Make entrypoint executable
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Use the entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# Default command if no arguments are passed
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]
