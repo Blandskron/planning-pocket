@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Close Room: {{ room.name }}</h2>
+    <p>Are you sure you want to close this room?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Yes, Close</button>
+        <a href="{% url 'room_detail' room.public_id %}">Cancel</a>
+    </form>
+{% endblock %}

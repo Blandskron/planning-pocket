@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="panel" style="max-width: 600px; margin: 0 auto; text-align: center;">
+    <h2>Join Room: {{ room.name }}</h2>
+    <p style="color:var(--text-muted); margin-bottom: 1.5rem;">Please enter your name to participate in this Planning Poker session.</p>
+    <form method="post" style="text-align: left;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" style="width: 100%; margin-top: 1rem;">Join Room</button>
+    </form>
+</div>
+{% endblock %}

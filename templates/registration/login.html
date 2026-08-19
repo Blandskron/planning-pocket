@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="panel" style="max-width: 400px; margin: 2rem auto; text-align: center;">
+    <h2 style="margin-bottom: 1.5rem;">Login to Planning Pocket</h2>
+    <form method="post" style="text-align: left;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" style="width: 100%; margin-top: 1rem;">Login</button>
+    </form>
+    <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
+        Don't have an account? <a href="{% url 'register' %}" style="color: var(--primary);">Register here</a>.
+    </p>
+</div>
+{% endblock %}

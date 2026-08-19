@@ -1,0 +1,36 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_DEBUG=False
+      - DJANGO_SECRET_KEY=super-secret-key-for-production-change-me
+      - DJANGO_ALLOWED_HOSTS=*
+      - DATABASE_URL=postgres://user:password@db:5432/planning_pocket
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    command: >
+      sh -c "python manage.py migrate && 
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: planning_pocket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

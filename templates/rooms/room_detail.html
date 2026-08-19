@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+    <div style="display:flex; align-items:center; gap: 1rem;">
+        <h2 style="margin:0;">{{ room.name }}</h2>
+        <span id="ws-status" style="width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); display: inline-block; transition: background-color 0.3s;" title="Disconnected"></span>
+    </div>
+    <span style="font-family:monospace; background:#e5e7eb; padding:0.25rem 0.5rem; border-radius:0.25rem;">ID: {{ room.public_id }}</span>
+</div>
+
+<div class="room-layout">
+    <!-- Sidebar -->
+    <div>
+        <div class="panel">
+            <h3>Identity</h3>
+            <p>Participating as: <strong>{{ participant.display_name }}</strong></p>
+        </div>
+
+        {% if is_owner %}
+            <div class="panel">
+                <h3>Facilitator Controls</h3>
+                
+                <div class="controls-row">
+                    <button onclick="revealRoom()">Reveal</button>
+                    <button onclick="resetRoom()" style="background-color: var(--text-muted);">Reset</button>
+                </div>
+                
+                <div id="finish-issue-panel" style="margin-top: 10px; display: {% if room.voting_status == 'revealed' and room.active_issue %}block{% else %}none{% endif %};">
+                    <input type="text" id="final-result-input" placeholder="Final result (e.g. 5)">
+                    <button onclick="finishIssue()" style="width: 100%;">Save Result</button>
+                </div>
+                
+                <hr style="margin: 1rem 0; border:none; border-top: 1px solid var(--border-color);">
+                
+                <h4>Issues</h4>
+                <form method="post" style="margin-top: 0.5rem;">
+                    {% csrf_token %}
+                    {{ issue_form.as_p }}
+                    <button type="submit" name="add_issue" style="width: 100%;">Add Issue</button>
+                </form>
+                
+                <ul class="issue-list" style="margin-top: 1rem;">
+                    {% for issue in issues %}
+                        <li>
+                            <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ issue.title }}
+                            </div>
+                            {% if issue.status == 'estimated' %}
+                                <strong>{{ issue.final_result }}</strong>
+                            {% else %}
+                                <button onclick="activateIssue({{ issue.id }})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Activate</button>
+                            {% endif %}
+                        </li>
+                    {% empty %}
+                        <li style="justify-content: center; color: var(--text-muted);">No issues added.</li>
+                    {% endfor %}
+                </ul>
+
+                {% if room.status == 'active' %}
+                    <form action="{% url 'close_room' room.public_id %}" method="post" style="margin-top: 1.5rem;">
+                        {% csrf_token %}
+                        <button type="submit" class="danger" style="width: 100%;">Close Room</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Content -->
+    <div>
+        <div class="panel">
+            <div id="active-issue-display" style="text-align: center; margin-bottom: 2rem;">
+                {% if room.active_issue %}
+                    <h3 style="border:none; margin:0; font-size:1.5rem;">{{ room.active_issue.title }}</h3>
+                    <p style="color:var(--text-muted);">{{ room.active_issue.description }}</p>
+                {% else %}
+                    <p style="color:var(--text-muted); font-style:italic;">No active issue. Waiting for facilitator...</p>
+                {% endif %}
+            </div>
+
+            <div class="deck" id="deck">
+                {% for card in deck_cards %}
+                    <button class="poker-card" onclick="castVote('{{ card }}', this)">{{ card }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Participants</h3>
+            <div class="participants-grid" id="participants-list">
+                {% for p in participants %}
+                    <div class="participant-card" id="participant-{{ p.id }}">
+                        <div class="participant-name">{{ p.display_name }}</div>
+                        <div id="vote-status-{{ p.id }}" class="vote-status {% if p.current_vote and room.voting_status == 'revealed' %}status-revealed{% elif p.current_vote %}status-voted{% else %}status-thinking{% endif %}">
+                            {% if p.current_vote and room.voting_status == 'revealed' %}
+                                {{ p.current_vote }}
+                            {% elif p.current_vote %}
+                                Voted
+                            {% else %}
+                                Thinking...
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <div id="no-participants" style="color:var(--text-muted);">No participants yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+    <script>
+        const publicId = "{{ room.public_id }}";
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsUrl = protocol + window.location.host + '/ws/room/' + publicId + '/';
+        
+        let ws;
+        let myCurrentVote = null;
+
+        function showToast(message, isError=false) {
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerText = message;
+                toast.style.backgroundColor = isError ? 'var(--danger)' : 'var(--primary)';
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+        }
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+            const statusDot = document.getElementById('ws-status');
+
+            ws.onopen = () => {
+                if (statusDot) {
+                    statusDot.style.backgroundColor = 'var(--success)';
+                    statusDot.title = 'Connected';
+                }
+                showToast('Connected to room');
+            };
+
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                
+                if (data.type === 'participant.joined') {
+                    const list = document.getElementById('participants-list');
+                    let item = document.getElementById('participant-' + data.participant.id);
+                    if (!item) {
+                        item = document.createElement('div');
+                        item.className = 'participant-card';
+                        item.id = 'participant-' + data.participant.id;
+                        item.innerHTML = `
+                            <div class="participant-name">${data.participant.display_name}</div>
+                            <div id="vote-status-${data.participant.id}" class="vote-status status-thinking">Thinking...</div>
+                        `;
+                        list.appendChild(item);
+                        
+                        const emptyLi = document.getElementById('no-participants');
+                        if (emptyLi) emptyLi.remove();
+                    }
+                } else if (data.type === 'participant.left') {
+                    const item = document.getElementById('participant-' + data.participant_id);
+                    if (item) item.remove();
+                } else if (data.type === 'participant.voted') {
+                    const statusDiv = document.getElementById('vote-status-' + data.participant_id);
+                    if (statusDiv) {
+                        if (data.value === null) {
+                            statusDiv.innerText = 'Thinking...';
+                            statusDiv.className = 'vote-status status-thinking';
+                        } else {
+                            statusDiv.innerText = 'Voted';
+                            statusDiv.className = 'vote-status status-voted';
+                        }
+                    }
+                } else if (data.type === 'room.revealed') {
+                    // Update all participant votes
+                    data.participants.forEach(p => {
+                        const statusDiv = document.getElementById('vote-status-' + p.id);
+                        if (statusDiv) {
+                            if (p.has_voted) {
+                                statusDiv.innerText = p.current_vote;
+                                statusDiv.className = 'vote-status status-revealed';
+                            } else {
+                                statusDiv.innerText = 'No Vote';
+                                statusDiv.className = 'vote-status status-thinking';
+                            }
+                        }
+                    });
+                    
+                    // Show finish issue panel if owner
+                    const finishPanel = document.getElementById('finish-issue-panel');
+                    const activeIssue = document.getElementById('active-issue-display').innerText.indexOf('No active issue') === -1;
+                    if (finishPanel && activeIssue) {
+                        finishPanel.style.display = 'block';
+                    }
+                } else if (data.type === 'room.resetted') {
+                    // Reset all spans to Thinking
+                    const spans = document.querySelectorAll('[id^="vote-status-"]');
+                    spans.forEach(span => {
+                        span.innerText = 'Thinking...';
+                        span.className = 'vote-status status-thinking';
+                    });
+                    
+                    // Clear selected card
+                    document.querySelectorAll('.poker-card').forEach(btn => btn.classList.remove('selected'));
+                    myCurrentVote = null;
+                    
+                    // Hide finish issue panel if owner
+                    const finishPanel = document.getElementById('finish-issue-panel');
+                    if (finishPanel) {
+                        finishPanel.style.display = 'none';
+                    }
+                } else if (data.type === 'issue.activated') {
+                    const display = document.getElementById('active-issue-display');
+                    if (display) {
+                        display.innerHTML = `<h3 style="border:none; margin:0; font-size:1.5rem;">${data.issue.title}</h3><p style="color:var(--text-muted);">${data.issue.description}</p>`;
+                    }
+                } else if (data.type === 'issue.finished') {
+                    const display = document.getElementById('active-issue-display');
+                    if (display) {
+                        display.innerHTML = `<p style="color:var(--text-muted); font-style:italic;">No active issue. Waiting for facilitator...</p>`;
+                    }
+                }
+            };
+
+            ws.onclose = (e) => {
+                if (statusDot) {
+                    statusDot.style.backgroundColor = 'var(--danger)';
+                    statusDot.title = 'Disconnected. Reconnecting...';
+                }
+                showToast('Connection lost. Reconnecting...', true);
+                setTimeout(connect, 2000);
+            };
+        }
+
+        connect();
+
+        function castVote(value, btnElement) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                let payloadValue = value;
+                
+                // Toggle vote off if clicking the same selected card
+                if (myCurrentVote === value) {
+                    payloadValue = null;
+                    myCurrentVote = null;
+                } else {
+                    myCurrentVote = value;
+                }
+                
+                ws.send(JSON.stringify({ type: 'vote.cast', value: payloadValue }));
+                
+                // Update UI selection
+                document.querySelectorAll('.poker-card').forEach(btn => btn.classList.remove('selected'));
+                if (payloadValue && btnElement) {
+                    btnElement.classList.add('selected');
+                }
+            }
+        }
+
+        function revealRoom() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'room.reveal' }));
+            }
+        }
+
+        function resetRoom() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'room.reset' }));
+            }
+        }
+        
+        function activateIssue(issueId) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'issue.activate', issue_id: issueId }));
+            }
+        }
+
+        function finishIssue() {
+            const input = document.getElementById('final-result-input');
+            const result = input ? input.value : '';
+            if (ws && ws.readyState === WebSocket.OPEN && result) {
+                ws.send(JSON.stringify({ type: 'issue.finish', final_result: result }));
+                if (input) input.value = '';
+            }
+        }
+
+        // Prevent double submit on forms
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function() {
+                const btn = this.querySelector('button[type="submit"]');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerText = 'Please wait...';
+                }
+            });
+        });
+    </script>
+{% endblock %}

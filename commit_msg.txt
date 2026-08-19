@@ -1,0 +1,35 @@
+feat(release): Planning Pocket v1.0 - Full UI/UX & Backend Implementation
+
+This commit encompasses the complete end-to-end implementation of Planning Pocket, moving it from prototype to a production-ready, fully functional Django application.
+
+Key additions and features:
+1. Core Domain & Architecture:
+   - Full modeling for PokerRoom, Issue, and Participant (rooms/models.py).
+   - "Server as the Source of Truth" architecture: All critical logic lives in Django.
+   - Distinct identities for Facilitators (authenticated Users) vs Guests (session-based Tokens).
+
+2. Real-Time WebSockets (Django Channels):
+   - Configured `daphne` and an ASGI layer.
+   - Robust `PokerConsumer` built to broadcast events: participant.joined, participant.voted, room.revealed, etc.
+   - Strict privacy enforcement natively on the WebSocket consumer (`_get_participant_state_sync`) that blanks out votes until the facilitator triggers `room.reveal`.
+
+3. UI & UX Refinement:
+   - No SPA frameworks used (HTML/CSS + Vanilla JS only).
+   - Upgraded to modern `style.css` utilizing CSS Variables and CSS Grid.
+   - Applied Nielsen's Usability Heuristics:
+     - Real-time connection feedback toasts (Connected/Disconnected).
+     - Double-submit prevention on all forms.
+     - Toggle vote mechanism (clicking an active card removes the vote via a `null` payload).
+     - Professional 'Inter' typography and elevation shadows.
+
+4. Testing & Code Quality:
+   - 26 rigorous tests passing (Unit + Integration + WebSockets via `channels.testing`).
+   - Cleaned all code using `ruff` (no unused imports or warnings).
+   - Eliminated dead `print()` statements and replaced with Python `logging`.
+
+5. Documentation & Infrastructure:
+   - Added exhaustive docstrings to key files (`models.py`, `views.py`, `consumers.py`).
+   - Created `DEVELOPER_GUIDE.md` detailing the internal architecture and flow.
+   - Pre-configured `Dockerfile` and `docker-compose.yml` leveraging PostgreSQL and Redis for a production-ready stack.
+   - Split dependencies into `requirements.txt` and `requirements-dev.txt`.
+   - Updated `README.md` and cleaned up `PLAN.md`.
