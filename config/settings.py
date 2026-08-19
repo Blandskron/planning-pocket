@@ -22,6 +22,11 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://planning-pocket-ypvs.onrender.com',
+    'https://*.onrender.com'
+]
+
 # Security (Production settings)
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
