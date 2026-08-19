@@ -3,7 +3,6 @@ channels==4.3.2
 channels_redis==4.3.0
 daphne==4.2.3
 Django==6.1
-django-environ==0.14.0
 djangorestframework==3.18.0
 python-dotenv==1.2.3
 redis==8.1.0
