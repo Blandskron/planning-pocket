@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024 Blandskron. All rights reserved.
+# Copyright (c) 2026 Blandskron. All rights reserved.
 # Author: Bastian Landskron (Cybersecurity, DevOps & AI)
 # exit on error
 set -o errexit
