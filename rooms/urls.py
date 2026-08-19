@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 from django.urls import path
 
 from .views import close_room, create_room, room_detail

@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse

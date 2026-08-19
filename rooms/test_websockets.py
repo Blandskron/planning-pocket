@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 import pytest
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model

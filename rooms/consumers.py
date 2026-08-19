@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 import json
 
 from channels.db import database_sync_to_async

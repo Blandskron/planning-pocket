@@ -1,7 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Copyright (c) 2024 Blandskron. All rights reserved. */
+/* Author: Bastian Landskron (Cybersecurity, DevOps & AI) */
+
+/* Copyright (c) 2024 Blandskron. All rights reserved. */
+/* Author: Bastian Landskron (Cybersecurity, DevOps & AI) */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Colors - Modern Vercel/Linear inspired palette */
+  /* Default Light Mode Palette - Clean & Corporate */
   --bg-color: #fafafa;
   --surface: #ffffff;
   --surface-hover: #f4f4f5;
@@ -12,31 +18,62 @@
   --border-color: #e4e4e7;
   --border-focus: #18181b;
   
-  --primary: #09090b;      /* Sleek Black for main actions */
+  --primary: #09090b;
   --primary-hover: #27272a;
   --primary-text: #ffffff;
   
-  --accent: #3b82f6;       /* Electric blue for selected states */
+  --accent: #3b82f6; 
   --accent-light: #eff6ff;
+  --accent-glow: rgba(59, 130, 246, 0.4);
   
   --success: #10b981;
   --success-light: #d1fae5;
   --danger: #ef4444;
   --danger-light: #fee2e2;
 
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
   
-  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   --shadow-float: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
   
-  /* Radii */
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-pill: 9999px;
+}
+
+/* Cyber/DevOps Dark Mode Palette - Blandskron Identity */
+:root[data-theme="dark"] {
+  --bg-color: #050505;
+  --surface: #111111;
+  --surface-hover: #1a1a1a;
+  
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  
+  --border-color: #27272a;
+  --border-focus: #10b981; /* Emerald Focus */
+  
+  --primary: #ffffff;
+  --primary-hover: #d4d4d8;
+  --primary-text: #000000;
+  
+  --accent: #10b981; /* Neon Emerald */
+  --accent-light: rgba(16, 185, 129, 0.1);
+  --accent-glow: rgba(16, 185, 129, 0.6);
+  
+  --success: #10b981;
+  --success-light: rgba(16, 185, 129, 0.15);
+  --danger: #ef4444;
+  --danger-light: rgba(239, 68, 68, 0.15);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
 }
 
 * {
@@ -52,11 +89,12 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Header */
 header {
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(var(--surface-rgb), 0.8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
@@ -67,22 +105,59 @@ header {
   position: sticky;
   top: 0;
   z-index: 40;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+:root[data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+:root[data-theme="dark"] header {
+  background-color: rgba(17, 17, 17, 0.8);
 }
 
-header h1 {
+header h1 a {
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: -0.025em;
-  color: var(--primary);
+  color: var(--text-main);
+  text-decoration: none;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Theme Switcher */
+.theme-switch-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.theme-switch {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  padding: 0.4rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.theme-switch:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-main);
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2.5rem 2rem;
+}
+@media (max-width: 768px) {
+  .container {
+    padding: 1.5rem 1rem;
+  }
 }
 
 /* Forms & Inputs */
@@ -91,6 +166,7 @@ input, textarea, select {
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
   background-color: var(--bg-color);
+  color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-family: inherit;
@@ -105,7 +181,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Buttons */
-button {
+button, .btn {
   background-color: var(--primary);
   color: var(--primary-text);
   border: 1px solid transparent;
@@ -120,15 +196,16 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  text-decoration: none;
 }
 
-button:hover:not(:disabled) {
+button:hover:not(:disabled), .btn:hover {
   background-color: var(--primary-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-button:active:not(:disabled) {
+button:active:not(:disabled), .btn:active {
   transform: translateY(0);
 }
 
@@ -171,6 +248,7 @@ button.danger:hover:not(:disabled) {
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: var(--shadow-sm);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .panel h3 {
@@ -202,7 +280,7 @@ button.danger:hover:not(:disabled) {
   border-color: var(--text-muted);
 }
 .issue-list li strong {
-  color: var(--primary);
+  color: var(--text-main);
   font-weight: 600;
   font-size: 0.875rem;
 }
@@ -239,6 +317,7 @@ button.danger:hover:not(:disabled) {
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   padding: 0;
   position: relative;
+  font-family: var(--font-mono);
 }
 
 .poker-card::before {
@@ -257,15 +336,15 @@ button.danger:hover:not(:disabled) {
   border-color: transparent;
 }
 .poker-card:hover::before {
-  opacity: 0.3;
+  opacity: 0.4;
 }
 
 .poker-card.selected {
   background-color: var(--accent);
-  color: white;
+  color: var(--bg-color);
   border-color: transparent;
   transform: translateY(-16px) scale(1.05);
-  box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.4), 0 8px 10px -6px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 15px 30px -5px var(--accent-glow), 0 8px 10px -6px var(--accent-light);
 }
 .poker-card.selected::before {
   display: none;
@@ -280,6 +359,12 @@ button.danger:hover:not(:disabled) {
   flex-direction: column;
   gap: 0.75rem;
 }
+@media (max-width: 900px) {
+  .participants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
 
 .participant-card {
   display: flex;
@@ -290,11 +375,11 @@ button.danger:hover:not(:disabled) {
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .participant-card:hover {
   transform: translateX(4px);
-  border-color: var(--text-muted);
+  border-color: var(--accent);
 }
 
 .participant-info {
@@ -323,7 +408,7 @@ button.danger:hover:not(:disabled) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  max-width: 120px;
 }
 
 .vote-status {
@@ -339,7 +424,7 @@ button.danger:hover:not(:disabled) {
 }
 .status-thinking { background-color: var(--bg-color); color: var(--text-muted); border: 1px dashed var(--border-color); }
 .status-voted { background-color: var(--success-light); color: var(--success); }
-.status-revealed { font-size: 1.25rem; font-weight: 800; color: var(--text-main); background: transparent; padding: 0; min-width: auto; }
+.status-revealed { font-size: 1.25rem; font-family: var(--font-mono); font-weight: 800; color: var(--accent); background: transparent; padding: 0; min-width: auto; text-shadow: 0 0 10px var(--accent-light); }
 
 .controls-row {
   display: flex;
@@ -375,3 +460,14 @@ button.danger:hover:not(:disabled) {
   transform: translateY(0) scale(1);
   opacity: 1;
 }
+
+/* Blandskron Watermark Footprint */
+.blandskron-mark {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 3rem;
+  font-family: var(--font-mono);
+  opacity: 0.6;
+}
+

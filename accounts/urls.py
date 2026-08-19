@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 from django.contrib.auth import views as auth_views
 from django.urls import path
 

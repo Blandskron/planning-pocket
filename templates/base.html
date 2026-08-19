@@ -1,16 +1,34 @@
 <!DOCTYPE html>
+<!-- Copyright (c) 2024 Blandskron. All rights reserved. -->
+<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% load static %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planning Pocket</title>
+    <title>Planning Pocket by Blandskron</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script>
+        // Prevent FOUC
+        const storedTheme = localStorage.getItem('theme');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (storedTheme === 'dark' || (!storedTheme && systemPrefersDark)) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    </script>
 </head>
 <body>
     <header>
         <h1><a href="{% url 'dashboard' %}" style="text-decoration:none; color:inherit;">Planning Pocket</a></h1>
+        
         <div style="display:flex; gap:1.25rem; align-items:center;">
+            <div class="theme-switch-wrapper">
+                <button id="theme-toggle" class="theme-switch" title="Toggle Theme">
+                    <span id="theme-icon">◐</span>
+                </button>
+            </div>
             {% if user.is_authenticated %}
                 <a href="{% url 'dashboard' %}" style="text-decoration:none; color:var(--text-muted); font-weight:500;">Dashboard</a>
                 <span style="color:var(--text-main); font-weight:600; padding: 0.25rem 0.75rem; background-color:var(--bg-color); border-radius:var(--radius-pill); border: 1px solid var(--border-color);">{{ user.username }}</span>
@@ -27,9 +45,32 @@
     <div class="container">
         {% block content %}
         {% endblock %}
+        
+        <div class="blandskron-mark">
+            <p>Designed & Engineered by <strong>Bastian Landskron</strong></p>
+            <p style="font-size: 0.65rem; margin-top: 0.25rem;">Cybersecurity, DevOps & AI Solutions</p>
+        </div>
     </div>
 
     <script>
+        // Theme Switcher Logic
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        
+        function updateIcon() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            themeIcon.innerText = currentTheme === 'dark' ? '☀' : '☾';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            let currentTheme = document.documentElement.getAttribute('data-theme');
+            let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon();
+        });
+        updateIcon();
+
         // Global UX improvements
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', function() {

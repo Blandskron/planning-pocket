@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Blandskron. All rights reserved.
+# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
