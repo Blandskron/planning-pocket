@@ -1,364 +1,285 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-    <div style="display:flex; align-items:center; gap: 1rem;">
-        <h2 style="margin:0;">{{ room.name }}</h2>
-        <span id="ws-status" style="width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); display: inline-block; transition: background-color 0.3s;" title="Disconnected"></span>
-    </div>
-    <span style="font-family:monospace; background:#e5e7eb; padding:0.25rem 0.5rem; border-radius:0.25rem;">ID: {{ room.public_id }}</span>
-</div>
-
-<div class="room-layout">
-    <!-- Sidebar -->
-    <div>
-        <div class="panel">
-            <h3>Identity</h3>
-            <p>Participating as: <strong>{{ participant.display_name }}</strong></p>
+<section class="poker-room" data-owner="{{ is_owner|yesno:'true,false' }}">
+    <header class="room-topbar">
+        <div class="room-brand">
+            <span class="room-mark" aria-hidden="true">♢</span>
+            <div><strong>{{ room.name }}</strong><span class="room-code">/{{ room.public_id }}</span></div>
         </div>
+        <div class="room-top-actions">
+            <span id="ws-status" class="connection-state" title="Connecting"><span></span>Live</span>
+            <button class="room-button room-button-secondary" type="button" id="share-room">↗ Compartir</button>
+        </div>
+    </header>
 
-        {% if is_owner %}
-            <div class="panel">
-                <h3>Facilitator Controls</h3>
-                
-                <div class="controls-row">
-                    <button onclick="revealRoom()">Reveal</button>
-                    <button onclick="resetRoom()" style="background-color: var(--text-muted);">Reset</button>
-                </div>
-                
-                <div id="finish-issue-panel" style="margin-top: 10px; display: {% if room.voting_status == 'revealed' and room.active_issue %}block{% else %}none{% endif %};">
-                    <input type="text" id="final-result-input" placeholder="Final result (e.g. 5)">
-                    <button onclick="finishIssue()" style="width: 100%;">Save Result</button>
-                </div>
-                
-                <hr style="margin: 1rem 0; border:none; border-top: 1px solid var(--border-color);">
-                
-                <h4>Issues</h4>
-                <form method="post" style="margin-top: 0.5rem;">
+    <div class="room-workspace">
+        <aside class="room-sidebar">
+            <div class="sidebar-heading"><span>Historias</span><span class="issue-count">{{ issues|length }}</span></div>
+            {% if is_owner %}
+                <form method="post" class="issue-form">
                     {% csrf_token %}
-                    {{ issue_form.as_p }}
-                    <button type="submit" name="add_issue" style="width: 100%;">Add Issue</button>
+                    {{ issue_form.title }}
+                    {{ issue_form.description }}
+                    <button class="room-button room-button-secondary" type="submit" name="add_issue">+ Añadir historia</button>
                 </form>
-                
-                <ul class="issue-list" style="margin-top: 1rem;">
-                    {% for issue in issues %}
-                        <li>
-                            <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                {{ issue.title }}
-                            </div>
-                            {% if issue.status == 'estimated' %}
-                                <strong>{{ issue.final_result }}</strong>
-                            {% else %}
-                                <button onclick="activateIssue({{ issue.id }})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Activate</button>
-                            {% endif %}
-                        </li>
-                    {% empty %}
-                        <li style="justify-content: center; color: var(--text-muted);">No issues added.</li>
-                    {% endfor %}
-                </ul>
+            {% endif %}
+            <ul class="room-issue-list" id="room-issues">
+                {% for issue in issues %}
+                    <li class="room-issue {% if room.active_issue_id == issue.id %}is-active{% endif %}" data-issue-id="{{ issue.id }}">
+                        <div>
+                            <small>{% if issue.status == 'estimated' %}Estimado · {{ issue.final_result }}{% elif room.active_issue_id == issue.id %}En estimación{% else %}Pendiente{% endif %}</small>
+                            <span>{{ issue.title }}</span>
+                        </div>
+                        {% if is_owner and issue.status != 'estimated' %}
+                            <button class="issue-activate" type="button" onclick="activateIssue({{ issue.id }})" aria-label="Estimar {{ issue.title }}">Estimar</button>
+                        {% endif %}
+                    </li>
+                {% empty %}
+                    <li class="issues-empty">Añade una historia para comenzar.</li>
+                {% endfor %}
+            </ul>
+            {% if is_owner and room.status == 'active' %}
+                <form action="{% url 'close_room' room.public_id %}" method="post" class="close-room-form">
+                    {% csrf_token %}
+                    <button type="submit" class="close-room">Cerrar sala</button>
+                </form>
+            {% endif %}
+        </aside>
 
-                {% if room.status == 'active' %}
-                    <form action="{% url 'close_room' room.public_id %}" method="post" style="margin-top: 1.5rem;">
-                        {% csrf_token %}
-                        <button type="submit" class="danger" style="width: 100%;">Close Room</button>
-                    </form>
-                {% endif %}
-            </div>
-        {% endif %}
-    </div>
-
-    <!-- Main Content -->
-    <div>
-        <div class="panel">
-            <div id="active-issue-display" style="text-align: center; margin-bottom: 2rem;">
+        <section class="poker-table-card" id="poker-table-card">
+            <div class="round-heading" id="active-issue-display">
+                <div class="round-status"><span></span><span id="round-label">{% if room.voting_status == 'revealed' %}Votos revelados{% else %}Votación abierta{% endif %}</span></div>
                 {% if room.active_issue %}
-                    <h3 style="border:none; margin:0; font-size:1.5rem;">{{ room.active_issue.title }}</h3>
-                    <p style="color:var(--text-muted);">{{ room.active_issue.description }}</p>
+                    <h1>{{ room.active_issue.title }}</h1>
+                    <p>{{ room.active_issue.description }}</p>
                 {% else %}
-                    <p style="color:var(--text-muted); font-style:italic;">No active issue. Waiting for facilitator...</p>
+                    <h1>Esperando una historia</h1>
+                    <p>El facilitador seleccionará la siguiente historia a estimar.</p>
                 {% endif %}
             </div>
 
+            <div class="table-stage">
+                <div class="table-oval" aria-hidden="true"></div>
+                <div class="table-seats" id="participants-list" aria-live="polite">
+                    {% for p in participants %}
+                        <article class="table-seat {% if p.id == participant.id %}is-me{% endif %} {% if p.current_vote %}has-voted{% else %}is-thinking{% endif %} {% if room.voting_status == 'revealed' %}is-revealed{% endif %}" id="participant-{{ p.id }}" data-participant-id="{{ p.id }}">
+                            <div class="participant-card">
+                                <div class="participant-card-inner">
+                                    <div class="participant-face participant-back"></div>
+                                    <div class="participant-face participant-front {% if not p.current_vote %}no-vote{% endif %}" id="vote-status-{{ p.id }}">{% if p.current_vote and room.voting_status == 'revealed' %}{{ p.current_vote }}{% else %}—{% endif %}</div>
+                                </div>
+                            </div>
+                            <div class="seat-name">{{ p.display_name }}{% if p.id == participant.id %}<span>Tú</span>{% endif %}</div>
+                            <div class="seat-state" id="state-status-{{ p.id }}">{% if p.current_vote %}{% if p.id == participant.id %}Tu voto{% else %}Votó{% endif %}{% else %}Pensando{% endif %}</div>
+                            {% if is_owner and p.id != participant.id %}
+                                <button class="seat-reminder" type="button" hidden onclick="remindParticipant({{ p.id }})">Recordar</button>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="room-controls">
+                {% if is_owner %}
+                    <button class="room-button room-button-primary" id="reveal-button" type="button" onclick="revealRoom()">Revelar votos</button>
+                    <button class="room-button room-button-secondary" id="reset-button" type="button" onclick="resetRoom()">Nueva ronda</button>
+                    <div id="finish-issue-panel" class="finish-issue" {% if room.voting_status != 'revealed' or not room.active_issue %}hidden{% endif %}>
+                        <input type="text" id="final-result-input" placeholder="Estimación final">
+                        <button class="room-button room-button-primary" type="button" onclick="finishIssue()">Guardar</button>
+                    </div>
+                {% endif %}
+                <span class="round-summary" id="round-summary" hidden></span>
+            </div>
+        </section>
+
+        <section class="room-deck-wrap" aria-label="Tu baraja">
+            <div class="deck-heading"><strong>Tu carta</strong><span>El equipo sólo verá que votaste.</span></div>
             <div class="deck" id="deck">
                 {% for card in deck_cards %}
-                    <button class="poker-card" onclick="castVote('{{ card }}', this)">{{ card }}</button>
+                    <button class="poker-card" type="button" onclick="castVote('{{ card }}', this)">{{ card }}</button>
                 {% endfor %}
             </div>
-        </div>
-
-        <div class="panel">
-            <h3>Participants</h3>
-            <div class="participants-grid" id="participants-list">
-                {% for p in participants %}
-                    <div class="participant-card" id="participant-{{ p.id }}">
-                        <div class="participant-info">
-                            <div class="participant-avatar">{{ p.display_name|make_list|first|upper }}</div>
-                            <div class="participant-name">{{ p.display_name }}</div>
-                        </div>
-                        <div id="vote-status-{{ p.id }}" class="vote-status {% if p.current_vote and room.voting_status == 'revealed' %}status-revealed{% elif p.current_vote %}status-voted{% else %}status-thinking{% endif %}">
-                            {% if p.current_vote and room.voting_status == 'revealed' %}
-                                {{ p.current_vote }}
-                            {% elif p.current_vote %}
-                                Voted
-                            {% else %}
-                                Thinking...
-                            {% endif %}
-                        </div>
-                    </div>
-                {% empty %}
-                    <div id="no-participants" style="color:var(--text-muted);">No participants yet.</div>
-                {% endfor %}
-            </div>
-        </div>
+        </section>
     </div>
-</div>
+</section>
+<div id="toast" role="status" aria-live="polite"></div>
 
-<div id="toast"></div>
+<script>
+const publicId = "{{ room.public_id }}";
+const myParticipantId = {{ participant.id }};
+const isFacilitator = {{ is_owner|yesno:"true,false" }};
+const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const wsUrl = protocol + window.location.host + '/ws/room/' + publicId + '/';
+let ws;
+let myCurrentVote = null;
+let votingStatus = "{{ room.voting_status }}";
 
-    <script>
-        const publicId = "{{ room.public_id }}";
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const wsUrl = protocol + window.location.host + '/ws/room/' + publicId + '/';
-        
-        let ws;
-        let myCurrentVote = null;
+function showToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.backgroundColor = isError ? 'var(--danger)' : 'var(--accent)';
+    toast.classList.add('show');
+    window.setTimeout(() => toast.classList.remove('show'), 3000);
+}
 
-        function showToast(message, isError=false) {
-            const toast = document.getElementById('toast');
-            if (toast) {
-                toast.innerText = message;
-                toast.style.backgroundColor = isError ? 'var(--danger)' : 'var(--primary)';
-                toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 3000);
-            }
-        }
+function createParticipantCard(participant) {
+    const seat = document.createElement('article');
+    seat.className = 'table-seat is-thinking';
+    seat.id = 'participant-' + participant.id;
+    seat.dataset.participantId = participant.id;
+    const card = document.createElement('div');
+    card.className = 'participant-card';
+    const inner = document.createElement('div');
+    inner.className = 'participant-card-inner';
+    const back = document.createElement('div');
+    back.className = 'participant-face participant-back';
+    const front = document.createElement('div');
+    front.className = 'participant-face participant-front no-vote';
+    front.id = 'vote-status-' + participant.id;
+    front.textContent = '—';
+    inner.append(back, front);
+    card.append(inner);
+    const name = document.createElement('div');
+    name.className = 'seat-name';
+    name.textContent = participant.display_name;
+    const state = document.createElement('div');
+    state.className = 'seat-state';
+    state.id = 'state-status-' + participant.id;
+    state.textContent = 'Pensando';
+    seat.append(card, name, state);
+    if (isFacilitator && participant.id !== myParticipantId) {
+        const reminder = document.createElement('button');
+        reminder.className = 'seat-reminder';
+        reminder.type = 'button';
+        reminder.textContent = 'Recordar';
+        reminder.hidden = true;
+        reminder.addEventListener('click', () => remindParticipant(participant.id));
+        seat.append(reminder);
+    }
+    return seat;
+}
 
-        function createParticipantCard(participant) {
-            const item = document.createElement('div');
-            item.className = 'participant-card';
-            item.id = 'participant-' + participant.id;
+function renderParticipant(participant) {
+    let seat = document.getElementById('participant-' + participant.id);
+    if (!seat) {
+        seat = createParticipantCard(participant);
+        document.getElementById('participants-list').append(seat);
+    }
+    const isMe = participant.id === myParticipantId;
+    const revealed = votingStatus === 'revealed';
+    seat.classList.toggle('has-voted', participant.has_voted);
+    seat.classList.toggle('is-thinking', !participant.has_voted && participant.is_online);
+    seat.classList.toggle('is-offline', !participant.is_online);
+    seat.classList.toggle('is-revealed', revealed);
+    const front = seat.querySelector('.participant-front');
+    front.classList.toggle('no-vote', !participant.has_voted);
+    front.textContent = revealed && participant.has_voted ? participant.current_vote : '—';
+    const state = seat.querySelector('.seat-state');
+    state.textContent = !participant.is_online ? 'Ausente' : participant.has_voted ? (isMe ? 'Tu voto' : 'Votó') : 'Pensando';
+    const reminder = seat.querySelector('.seat-reminder');
+    if (reminder) reminder.hidden = !(!revealed && participant.is_online && !participant.has_voted);
+}
 
-            const info = document.createElement('div');
-            info.className = 'participant-info';
-            const avatar = document.createElement('div');
-            avatar.className = 'participant-avatar';
-            avatar.textContent = participant.display_name.charAt(0).toUpperCase();
-            const name = document.createElement('div');
-            name.className = 'participant-name';
-            name.textContent = participant.display_name;
-            info.append(avatar, name);
+function renderActiveIssue(issue) {
+    const display = document.getElementById('active-issue-display');
+    display.replaceChildren();
+    const status = document.createElement('div');
+    status.className = 'round-status';
+    const dot = document.createElement('span');
+    const label = document.createElement('span');
+    label.id = 'round-label';
+    label.textContent = issue ? 'Votación abierta' : 'Esperando una historia';
+    status.append(dot, label);
+    const title = document.createElement('h1');
+    title.textContent = issue ? issue.title : 'Esperando una historia';
+    const description = document.createElement('p');
+    description.textContent = issue ? issue.description : 'El facilitador seleccionará la siguiente historia a estimar.';
+    display.append(status, title, description);
+}
 
-            const status = document.createElement('div');
-            status.id = 'vote-status-' + participant.id;
-            status.className = 'vote-status status-thinking';
-            status.textContent = 'Thinking...';
-            item.append(info, status);
-            return item;
-        }
+function setResults(results) {
+    const summary = document.getElementById('round-summary');
+    if (!results) { summary.hidden = true; return; }
+    summary.hidden = false;
+    const average = results.average === null ? '—' : results.average;
+    summary.textContent = 'Promedio ' + average + ' · ' + (results.has_consensus ? 'Consenso' : 'Sin consenso');
+}
 
-        function renderActiveIssue(issue) {
-            const display = document.getElementById('active-issue-display');
-            if (!display) return;
-            display.replaceChildren();
+function updateControls(activeIssue) {
+    const reveal = document.getElementById('reveal-button');
+    const finish = document.getElementById('finish-issue-panel');
+    if (reveal) reveal.hidden = votingStatus === 'revealed' || !activeIssue;
+    if (finish) finish.hidden = votingStatus !== 'revealed' || !activeIssue;
+}
 
-            const text = document.createElement(issue ? 'h3' : 'p');
-            if (issue) {
-                text.style.cssText = 'border:none; margin:0; font-size:1.5rem;';
-                text.textContent = issue.title;
-                display.append(text);
-                if (issue.description) {
-                    const description = document.createElement('p');
-                    description.style.color = 'var(--text-muted)';
-                    description.textContent = issue.description;
-                    display.append(description);
-                }
-            } else {
-                text.style.cssText = 'color:var(--text-muted); font-style:italic;';
-                text.textContent = 'No active issue. Waiting for facilitator...';
-                display.append(text);
-            }
-        }
+function connect() {
+    ws = new WebSocket(wsUrl);
+    const status = document.getElementById('ws-status');
+    ws.onopen = () => { status.classList.add('is-live'); status.title = 'Connected'; };
+    ws.onmessage = event => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'room.state') {
+            votingStatus = data.payload.room.voting_status;
+            data.payload.participants.forEach(renderParticipant);
+            myCurrentVote = data.payload.your_vote;
+            document.querySelectorAll('.poker-card').forEach(card => card.classList.toggle('selected', card.textContent === myCurrentVote));
+            renderActiveIssue(data.payload.active_issue);
+            setResults(data.payload.results);
+            updateControls(data.payload.active_issue);
+        } else if (data.type === 'participant.joined') {
+            renderParticipant(data.participant);
+        } else if (data.type === 'participant.left') {
+            const seat = document.getElementById('participant-' + data.participant_id);
+            if (seat) { seat.classList.add('is-offline'); seat.querySelector('.seat-state').textContent = 'Ausente'; }
+        } else if (data.type === 'participant.voted') {
+            const seat = document.getElementById('participant-' + data.participant_id);
+            if (seat) renderParticipant({id: data.participant_id, has_voted: data.has_voted, is_online: true, current_vote: null});
+        } else if (data.type === 'participant.reminded') {
+            const seat = document.getElementById('participant-' + data.participant_id);
+            if (seat) { seat.classList.remove('is-reminded'); void seat.offsetWidth; seat.classList.add('is-reminded'); }
+        } else if (data.type === 'room.revealed') {
+            votingStatus = 'revealed';
+            data.participants.forEach(renderParticipant);
+            setResults(data.results);
+            updateControls(true);
+        } else if (data.type === 'room.resetted') {
+            votingStatus = 'voting';
+            document.querySelectorAll('.table-seat').forEach(seat => renderParticipant({id: Number(seat.dataset.participantId), has_voted: false, is_online: !seat.classList.contains('is-offline'), current_vote: null}));
+            document.querySelectorAll('.poker-card').forEach(card => card.classList.remove('selected'));
+            myCurrentVote = null;
+            setResults(null);
+            updateControls(document.querySelector('#active-issue-display h1').textContent !== 'Esperando una historia');
+        } else if (data.type === 'issue.activated') {
+            renderActiveIssue(data.issue);
+            document.querySelectorAll('.room-issue').forEach(item => item.classList.toggle('is-active', Number(item.dataset.issueId) === data.issue.id));
+        } else if (data.type === 'issue.finished') {
+            renderActiveIssue(null);
+            updateControls(false);
+        } else if (data.type === 'error') showToast(data.message || 'No se pudo completar la acción.', true);
+    };
+    ws.onclose = () => { status.classList.remove('is-live'); status.title = 'Reconnecting'; window.setTimeout(connect, 2000); };
+}
 
-        function connect() {
-            ws = new WebSocket(wsUrl);
-            const statusDot = document.getElementById('ws-status');
-
-            ws.onopen = () => {
-                if (statusDot) {
-                    statusDot.style.backgroundColor = 'var(--success)';
-                    statusDot.title = 'Connected';
-                }
-                showToast('Connected to room');
-            };
-
-            ws.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                
-                if (data.type === 'room.state') {
-                    const state = data.payload;
-                    state.participants.forEach(p => {
-                        const statusDiv = document.getElementById('vote-status-' + p.id);
-                        if (!statusDiv) return;
-
-                        if (state.room.voting_status === 'revealed' && p.has_voted) {
-                            statusDiv.innerText = p.current_vote;
-                            statusDiv.className = 'vote-status status-revealed';
-                        } else if (p.has_voted) {
-                            statusDiv.innerText = 'Voted';
-                            statusDiv.className = 'vote-status status-voted';
-                        } else {
-                            statusDiv.innerText = 'Thinking...';
-                            statusDiv.className = 'vote-status status-thinking';
-                        }
-                    });
-
-                    myCurrentVote = state.your_vote;
-                    document.querySelectorAll('.poker-card').forEach(btn => {
-                        btn.classList.toggle('selected', btn.innerText === myCurrentVote);
-                    });
-                } else if (data.type === 'participant.joined') {
-                    const list = document.getElementById('participants-list');
-                    let item = document.getElementById('participant-' + data.participant.id);
-                    if (!item) {
-                        item = createParticipantCard(data.participant);
-                        list.appendChild(item);
-                        
-                        const emptyLi = document.getElementById('no-participants');
-                        if (emptyLi) emptyLi.remove();
-                    }
-                } else if (data.type === 'participant.left') {
-                    const item = document.getElementById('participant-' + data.participant_id);
-                    if (item) item.remove();
-                } else if (data.type === 'participant.voted') {
-                    const statusDiv = document.getElementById('vote-status-' + data.participant_id);
-                    if (statusDiv) {
-                        if (!data.has_voted) {
-                            statusDiv.innerText = 'Thinking...';
-                            statusDiv.className = 'vote-status status-thinking';
-                        } else {
-                            statusDiv.innerText = 'Voted';
-                            statusDiv.className = 'vote-status status-voted';
-                        }
-                    }
-                } else if (data.type === 'room.revealed') {
-                    // Update all participant votes
-                    data.participants.forEach(p => {
-                        const statusDiv = document.getElementById('vote-status-' + p.id);
-                        if (statusDiv) {
-                            if (p.has_voted) {
-                                statusDiv.innerText = p.current_vote;
-                                statusDiv.className = 'vote-status status-revealed';
-                            } else {
-                                statusDiv.innerText = 'No Vote';
-                                statusDiv.className = 'vote-status status-thinking';
-                            }
-                        }
-                    });
-                    
-                    // Show finish issue panel if owner
-                    const finishPanel = document.getElementById('finish-issue-panel');
-                    const activeIssue = document.getElementById('active-issue-display').innerText.indexOf('No active issue') === -1;
-                    if (finishPanel && activeIssue) {
-                        finishPanel.style.display = 'block';
-                    }
-                } else if (data.type === 'room.resetted') {
-                    // Reset all spans to Thinking
-                    const spans = document.querySelectorAll('[id^="vote-status-"]');
-                    spans.forEach(span => {
-                        span.innerText = 'Thinking...';
-                        span.className = 'vote-status status-thinking';
-                    });
-                    
-                    // Clear selected card
-                    document.querySelectorAll('.poker-card').forEach(btn => btn.classList.remove('selected'));
-                    myCurrentVote = null;
-                    
-                    // Hide finish issue panel if owner
-                    const finishPanel = document.getElementById('finish-issue-panel');
-                    if (finishPanel) {
-                        finishPanel.style.display = 'none';
-                    }
-                } else if (data.type === 'issue.activated') {
-                    renderActiveIssue(data.issue);
-                } else if (data.type === 'issue.finished') {
-                    renderActiveIssue(null);
-                } else if (data.type === 'error') {
-                    showToast(data.message || 'The action could not be completed.', true);
-                }
-            };
-
-            ws.onclose = (e) => {
-                if (statusDot) {
-                    statusDot.style.backgroundColor = 'var(--danger)';
-                    statusDot.title = 'Disconnected. Reconnecting...';
-                }
-                showToast('Connection lost. Reconnecting...', true);
-                setTimeout(connect, 2000);
-            };
-        }
-
-        connect();
-
-        function castVote(value, btnElement) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                let payloadValue = value;
-                
-                // Toggle vote off if clicking the same selected card
-                if (myCurrentVote === value) {
-                    payloadValue = null;
-                    myCurrentVote = null;
-                } else {
-                    myCurrentVote = value;
-                }
-                
-                ws.send(JSON.stringify({ type: 'vote.cast', value: payloadValue }));
-                
-                // Update UI selection
-                document.querySelectorAll('.poker-card').forEach(btn => btn.classList.remove('selected'));
-                if (payloadValue && btnElement) {
-                    btnElement.classList.add('selected');
-                }
-            }
-        }
-
-        function revealRoom() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'room.reveal' }));
-            }
-        }
-
-        function resetRoom() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'room.reset' }));
-            }
-        }
-        
-        function activateIssue(issueId) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'issue.activate', issue_id: issueId }));
-            }
-        }
-
-        function finishIssue() {
-            const input = document.getElementById('final-result-input');
-            const result = input ? input.value : '';
-            if (ws && ws.readyState === WebSocket.OPEN && result) {
-                ws.send(JSON.stringify({ type: 'issue.finish', final_result: result }));
-                if (input) input.value = '';
-            }
-        }
-
-        // Prevent double submit on forms
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', function() {
-                const btn = this.querySelector('button[type="submit"]');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerText = 'Please wait...';
-                }
-            });
-        });
-    </script>
+function send(type, payload = {}) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type, ...payload})); }
+function castVote(value, button) {
+    if (votingStatus === 'revealed') return;
+    const next = myCurrentVote === value ? null : value;
+    myCurrentVote = next;
+    document.querySelectorAll('.poker-card').forEach(card => card.classList.toggle('selected', card === button && next));
+    send('vote.cast', {value: next});
+}
+function revealRoom() { send('room.reveal'); }
+function resetRoom() { send('room.reset'); }
+function activateIssue(issueId) { send('issue.activate', {issue_id: issueId}); }
+function remindParticipant(participantId) { send('participant.remind', {participant_id: participantId}); }
+function finishIssue() {
+    const input = document.getElementById('final-result-input');
+    if (input.value) { send('issue.finish', {final_result: input.value}); input.value = ''; }
+}
+document.getElementById('share-room').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); } catch { showToast('Copia el enlace desde la barra del navegador.', true); }
+});
+connect();
+</script>
 {% endblock %}

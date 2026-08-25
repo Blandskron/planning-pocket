@@ -76,6 +76,14 @@ class RoomsTests(TestCase):
         # Ensure it didn't create a second participant
         self.assertEqual(self.room.participants.count(), 1)
 
+    def test_room_detail_uses_the_table_participant_layout(self):
+        self.client.login(username='owner', password='password123')
+        response = self.client.get(reverse('room_detail', args=[self.room.public_id]))
+
+        self.assertContains(response, 'class="poker-room"')
+        self.assertContains(response, 'class="poker-table-card"')
+        self.assertContains(response, 'table-seat')
+
     def test_cannot_join_closed_room(self):
         self.room.close_room()
         url = reverse('room_detail', args=[self.room.public_id])

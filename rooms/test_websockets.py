@@ -151,6 +151,42 @@ async def test_guest_cannot_reveal_and_receives_an_explicit_error():
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_facilitator_can_remind_a_connected_participant_who_has_not_voted():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    guest_user = await sync_to_async(User.objects.create_user)(username="guest", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    issue = await sync_to_async(Issue.objects.create)(
+        room=room, title="Estimate this", status="active"
+    )
+    room.active_issue = issue
+    await sync_to_async(room.save)(update_fields=["active_issue"])
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    guest = await sync_to_async(Participant.objects.create)(
+        room=room, user=guest_user, display_name="Guest"
+    )
+
+    owner_socket, _ = await connect_participant(room, owner)
+    await owner_socket.receive_json_from()  # owner joined
+    guest_socket, _ = await connect_participant(room, guest_user)
+    await owner_socket.receive_json_from()  # guest joined
+    await guest_socket.receive_json_from()  # guest joined
+
+    await owner_socket.send_json_to(
+        {"type": "participant.remind", "participant_id": guest.id}
+    )
+    owner_event = await owner_socket.receive_json_from()
+    guest_event = await guest_socket.receive_json_from()
+    assert owner_event == guest_event == {
+        "type": "participant.reminded",
+        "participant_id": guest.id,
+    }
+
+    await owner_socket.disconnect()
+    await guest_socket.disconnect()
+
+
+@pytest.mark.asyncio
 async def test_websocket_rejects_an_untrusted_origin():
     communicator = WebsocketCommunicator(
         application,

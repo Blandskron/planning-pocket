@@ -8,6 +8,7 @@ from rooms.services import (
     calculate_results,
     cast_vote,
     finish_active_issue,
+    remind_participant,
     reset_round,
     reveal_round,
 )
@@ -109,3 +110,20 @@ class TestVotingRoundService:
             "average": 8.0,
             "has_consensus": True,
         }
+
+    def test_reminder_requires_a_pending_connected_participant(self):
+        activate_issue(self.room.id, self.issue.id, self.owner)
+        self.guest.connection_count = 1
+        self.guest.save(update_fields=["connection_count"])
+
+        remind_participant(self.room.id, self.guest.id, self.owner)
+        self.guest.refresh_from_db()
+        assert self.guest.last_reminded_at is not None
+
+        with pytest.raises(RoomActionError, match="Wait 20 seconds"):
+            remind_participant(self.room.id, self.guest.id, self.owner)
+
+        self.guest.current_vote = "5"
+        self.guest.save(update_fields=["current_vote"])
+        with pytest.raises(RoomActionError, match="already voted"):
+            remind_participant(self.room.id, self.guest.id, self.owner)

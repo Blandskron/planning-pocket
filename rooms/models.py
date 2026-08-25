@@ -127,6 +127,7 @@ class Participant(models.Model):
     )
     joined_at = models.DateTimeField(auto_now_add=True)
     connection_count = models.PositiveIntegerField(default=0)
+    last_reminded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ('room', 'user')  # A registered user can only join a room once

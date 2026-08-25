@@ -14,12 +14,11 @@ from .services import (
     calculate_results,
     cast_vote,
     finish_active_issue,
+    remind_participant,
     reset_round,
     reveal_round,
 )
-from .services import (
-    activate_issue as activate_room_issue,
-)
+from .services import activate_issue as activate_room_issue
 
 
 class PokerConsumer(AsyncWebsocketConsumer):
@@ -46,6 +45,9 @@ class PokerConsumer(AsyncWebsocketConsumer):
                     "participant": {
                         "id": self.participant.id,
                         "display_name": self.participant.display_name,
+                        "has_voted": self.participant.current_vote is not None,
+                        "is_online": True,
+                        "current_vote": None,
                     },
                 },
             )
@@ -83,6 +85,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "room.reset",
             "issue.activate",
             "issue.finish",
+            "participant.remind",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
             return
@@ -97,6 +100,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.handle_issue_activation(data)
         elif event_type == "issue.finish":
             await self.handle_issue_finish(data)
+        elif event_type == "participant.remind":
+            await self.handle_participant_reminder(data)
 
     async def handle_vote(self, data):
         value = data.get("value")
@@ -177,6 +182,23 @@ class PokerConsumer(AsyncWebsocketConsumer):
         )
         await self.channel_layer.group_send(self.room_group_name, {"type": "room.resetted"})
 
+    async def handle_participant_reminder(self, data):
+        participant_id = data.get("participant_id")
+        if isinstance(participant_id, bool) or not isinstance(participant_id, int):
+            await self.send_error("invalid_payload", "A participant id must be an integer.")
+            return
+
+        try:
+            participant = await self.remind_participant(participant_id)
+        except (Participant.DoesNotExist, RoomActionError) as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "participant.reminded", "participant_id": participant["id"]},
+        )
+
     async def send_error(self, code, message):
         await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
 
@@ -248,6 +270,12 @@ class PokerConsumer(AsyncWebsocketConsumer):
         room = PokerRoom.objects.get(public_id=self.public_id)
         issue = finish_active_issue(room.id, final_result, self.scope.get("user"))
         return self.serialize_issue(issue)
+
+    @database_sync_to_async
+    def remind_participant(self, participant_id):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        participant = remind_participant(room.id, participant_id, self.scope.get("user"))
+        return {"id": participant.id}
 
     @database_sync_to_async
     def get_all_participants_state(self):
@@ -328,6 +356,13 @@ class PokerConsumer(AsyncWebsocketConsumer):
                     "participant_id": event["participant_id"],
                     "has_voted": event["has_voted"],
                 }
+            )
+        )
+
+    async def participant_reminded(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "participant.reminded", "participant_id": event["participant_id"]}
             )
         )
 

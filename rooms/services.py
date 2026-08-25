@@ -3,6 +3,7 @@
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Issue, Participant, PokerRoom
 
@@ -152,3 +153,27 @@ def finish_active_issue(room_id, final_result, actor):
     room.save(update_fields=["active_issue", "voting_status"])
     Participant.objects.filter(room=room).update(current_vote=None)
     return issue
+
+
+@transaction.atomic
+def remind_participant(room_id, participant_id, actor):
+    """Send a rate-limited, facilitator-only reminder to a pending participant."""
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+    _require_facilitator(room, actor)
+    if room.voting_status != "voting":
+        raise RoomActionError("Reminders are available only while voting is open.")
+
+    participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
+    if participant.current_vote is not None:
+        raise RoomActionError("This participant has already voted.")
+    if participant.connection_count == 0:
+        raise RoomActionError("This participant is not connected.")
+
+    now = timezone.now()
+    if participant.last_reminded_at and (now - participant.last_reminded_at).total_seconds() < 20:
+        raise RoomActionError("Wait 20 seconds before sending another reminder.")
+
+    participant.last_reminded_at = now
+    participant.save(update_fields=["last_reminded_at"])
+    return participant
