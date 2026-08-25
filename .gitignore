@@ -148,7 +148,7 @@ activemq-data/
 *.sage.py
 
 # Environments
-# .env
+.env
 .envrc
 .venv
 env/
@@ -219,7 +219,6 @@ __marimo__/
 
 .venv*/
 staticfiles/
-# .env
 __pycache__/
 *.sqlite3
 .pytest_cache/
