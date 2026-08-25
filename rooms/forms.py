@@ -11,14 +11,20 @@ class PokerRoomForm(forms.ModelForm):
         model = PokerRoom
         fields = ['name']
         widgets = {
-            'name': forms.TextInput(attrs={'placeholder': 'Ej. Sprint 42 Planning'}),
+            'name': forms.TextInput(
+                attrs={'placeholder': 'Ej. Planning Sprint 42', 'autocomplete': 'off'}
+            ),
         }
+        labels = {'name': 'Nombre de la sala'}
 
 class GuestJoinForm(forms.Form):
     display_name = forms.CharField(
         max_length=50,
-        label='Your Name',
-        widget=forms.TextInput(attrs={'placeholder': 'Enter your name to join'})
+        label='Tu nombre',
+        error_messages={'required': 'Escribe tu nombre para entrar.'},
+        widget=forms.TextInput(
+            attrs={'placeholder': 'Ej. Andrea', 'autocomplete': 'name', 'autofocus': True}
+        )
     )
 
 class IssueForm(forms.ModelForm):
@@ -26,6 +32,7 @@ class IssueForm(forms.ModelForm):
         model = Issue
         fields = ['title', 'description']
         widgets = {
-            'title': forms.TextInput(attrs={'placeholder': 'e.g. As a user, I want to...'}),
-            'description': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Optional details'}),
+            'title': forms.TextInput(attrs={'placeholder': 'Título de la historia'}),
+            'description': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Contexto opcional'}),
         }
+        labels = {'title': 'Historia', 'description': 'Descripción'}

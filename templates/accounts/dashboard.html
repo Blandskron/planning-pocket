@@ -1,32 +1,27 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
+{% block title %}Mis salas · Planning Pocket{% endblock %}
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
-    <h2>Dashboard</h2>
-    <a href="{% url 'create_room' %}" style="display:inline-flex; align-items:center; background-color:var(--primary); color:var(--primary-text); padding:0.625rem 1.25rem; border-radius:var(--radius-md); text-decoration:none; font-weight:600; box-shadow:var(--shadow-sm); transition:transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='var(--shadow-md)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)';">Create New Room</a>
-</div>
-
-<div class="panel">
-    <h3>Your Rooms</h3>
-    <ul class="issue-list">
-        {% for room in rooms %}
-            <li style="padding: 1rem 1.5rem;">
-                <div style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <strong style="font-size:1rem;">{{ room.name }}</strong> 
-                    <span style="font-size:0.75rem; color:var(--text-muted);">Created on {{ room.created_at|date:"M d, Y" }}</span>
-                </div>
-                <div style="display:flex; align-items:center; gap: 1rem;">
-                    <div class="vote-status {% if room.status == 'active' %}status-voted{% else %}status-thinking{% endif %}">
-                        {{ room.status|title }}
-                    </div>
-                    <span style="font-family:monospace; font-size:0.875rem; background:var(--bg-color); padding:0.25rem 0.5rem; border-radius:var(--radius-md); border:1px solid var(--border-color);">{{ room.public_id }}</span>
-                    <a href="{% url 'room_detail' room.public_id %}" style="text-decoration:none; color:var(--accent); font-weight:600;">Enter &rarr;</a>
-                </div>
-            </li>
-        {% empty %}
-            <li style="justify-content: center; color: var(--text-muted); padding: 3rem;">You haven't created any rooms yet.</li>
-        {% endfor %}
-    </ul>
-</div>
+<section class="page-heading">
+    <div><span class="eyebrow">Tu espacio de juego</span><h1>Mis salas</h1><p>Retoma una sesión o prepara una mesa nueva para tu equipo.</p></div>
+    <a href="{% url 'create_room' %}" class="button button-primary"><span aria-hidden="true">＋</span> Nueva sala</a>
+</section>
+<section class="room-collection" aria-labelledby="rooms-heading">
+    <div class="section-heading"><div><h2 id="rooms-heading">Tus salas</h2><p>{{ rooms|length }} sesión{{ rooms|length|pluralize:"es" }} en total</p></div></div>
+    {% if rooms %}
+        <ul class="dashboard-room-grid">
+            {% for room in rooms %}
+                <li><a class="dashboard-room-card" href="{% url 'room_detail' room.public_id %}">
+                    <span class="mini-card-stack" aria-hidden="true"><span>{{ forloop.counter }}</span></span>
+                    <span class="dashboard-room-main">
+                        <span class="status-pill {% if room.status == 'active' %}is-active{% else %}is-closed{% endif %}"><span></span>{% if room.status == 'active' %}Activa{% else %}Cerrada{% endif %}</span>
+                        <strong>{{ room.name }}</strong><small>Creada el {{ room.created_at|date:"d/m/Y" }}</small>
+                    </span>
+                    <span class="dashboard-room-meta"><code>{{ room.public_id }}</code><span class="card-arrow" aria-hidden="true">→</span></span>
+                </a></li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="empty-state"><span class="empty-card" aria-hidden="true">?</span><h3>Tu primera mesa está a una carta</h3><p>Crea una sala, comparte el enlace y empieza a estimar sin configurar nada más.</p><a href="{% url 'create_room' %}" class="button button-primary">Crear mi primera sala</a></div>
+    {% endif %}
+</section>
 {% endblock %}

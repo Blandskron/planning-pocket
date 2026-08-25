@@ -1,14 +1,11 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Nueva sala · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
 {% block content %}
-<div class="panel" style="max-width: 600px; margin: 0 auto;">
-    <h2>Create Planning Poker Room</h2>
-    <form method="post" style="margin-top: 1.5rem;">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" style="width: 100%; margin-top: 1rem;">Create Room</button>
-    </form>
-</div>
+<section class="form-card">
+    <div class="form-card-visual" aria-hidden="true"><div class="floating-card card-one">3</div><div class="floating-card card-two">5</div><div class="floating-card card-three">8</div></div>
+    <div class="form-card-content"><a class="back-link" href="{% url 'dashboard' %}">← Volver a mis salas</a><span class="eyebrow">Prepara la mesa</span><h1>Nueva sala</h1><p class="form-intro">Ponle un nombre reconocible. Podrás compartir el enlace con todo el equipo al entrar.</p>
+        <form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button type="submit" class="button button-primary button-block">Crear sala y entrar</button></form>
+    </div>
+</section>
 {% endblock %}

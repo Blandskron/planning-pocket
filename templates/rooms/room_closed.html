@@ -1,9 +1,6 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Sala cerrada · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
 {% block content %}
-    <h2>Room Closed</h2>
-    <p>The Planning Poker room <strong>{{ room.name }}</strong> has been closed by the facilitator.</p>
-    <a href="/">Return Home</a>
+<section class="decision-card"><span class="decision-icon is-neutral" aria-hidden="true">✓</span><span class="eyebrow">Sesión finalizada</span><h1>Esta mesa ya cerró</h1><p>La sala <strong>{{ room.name }}</strong> fue cerrada por su facilitador.</p><a href="{% url 'dashboard' %}" class="button button-primary">Ir al inicio</a></section>
 {% endblock %}

@@ -1,27 +1,33 @@
 {% extends 'base.html' %}
 
+{% block title %}{{ room.name }} · Planning Pocket{% endblock %}
+{% block shell_class %}room-shell{% endblock %}
+
 {% block content %}
 <section class="poker-room" data-owner="{{ is_owner|yesno:'true,false' }}">
     <header class="room-topbar">
         <div class="room-brand">
-            <span class="room-mark" aria-hidden="true">♢</span>
-            <div><strong>{{ room.name }}</strong><span class="room-code">/{{ room.public_id }}</span></div>
+            <span class="room-mark" aria-hidden="true">P</span>
+            <div><span class="room-kicker">Mesa de planning</span><strong>{{ room.name }}</strong><span class="room-code">#{{ room.public_id }}</span></div>
         </div>
         <div class="room-top-actions">
-            <span id="ws-status" class="connection-state" title="Connecting"><span></span>Live</span>
-            <button class="room-button room-button-secondary" type="button" id="share-room">↗ Compartir</button>
+            {% if is_owner %}<span class="facilitator-badge">Facilitador</span>{% endif %}
+            <span id="ws-status" class="connection-state" title="Conectando"><span aria-hidden="true"></span><span class="connection-label">Conectando</span></span>
+            <button class="room-button room-button-secondary" type="button" id="share-room"><span aria-hidden="true">↗</span> Compartir</button>
         </div>
     </header>
 
     <div class="room-workspace">
         <aside class="room-sidebar">
-            <div class="sidebar-heading"><span>Historias</span><span class="issue-count">{{ issues|length }}</span></div>
+            <div class="sidebar-heading"><span>Historias</span><span class="issue-count" aria-label="{{ issues|length }} historias">{{ issues|length }}</span></div>
             {% if is_owner %}
                 <form method="post" class="issue-form">
                     {% csrf_token %}
+                    <label class="sr-only" for="{{ issue_form.title.id_for_label }}">Título de la historia</label>
                     {{ issue_form.title }}
+                    <label class="sr-only" for="{{ issue_form.description.id_for_label }}">Descripción opcional</label>
                     {{ issue_form.description }}
-                    <button class="room-button room-button-secondary" type="submit" name="add_issue">+ Añadir historia</button>
+                    <button class="room-button room-button-secondary" type="submit" name="add_issue"><span aria-hidden="true">＋</span> Añadir historia</button>
                 </form>
             {% endif %}
             <ul class="room-issue-list" id="room-issues">
@@ -49,7 +55,7 @@
 
         <section class="poker-table-card" id="poker-table-card">
             <div class="round-heading" id="active-issue-display">
-                <div class="round-status"><span></span><span id="round-label">{% if room.voting_status == 'revealed' %}Votos revelados{% else %}Votación abierta{% endif %}</span></div>
+                <div class="round-status {% if room.voting_status == 'revealed' %}is-revealed{% endif %}"><span aria-hidden="true"></span><span id="round-label">{% if room.voting_status == 'revealed' %}Votos revelados{% else %}Votación abierta{% endif %}</span></div>
                 {% if room.active_issue %}
                     <h1>{{ room.active_issue.title }}</h1>
                     <p>{{ room.active_issue.description }}</p>
@@ -60,7 +66,7 @@
             </div>
 
             <div class="table-stage">
-                <div class="table-oval" aria-hidden="true"></div>
+                <div class="table-oval" aria-hidden="true"><span class="table-monogram">PP</span><span class="table-caption">Planning Pocket</span></div>
                 <div class="table-seats" id="participants-list" aria-live="polite">
                     {% for p in participants %}
                         <article class="table-seat {% if p.id == participant.id %}is-me{% endif %} {% if p.current_vote %}has-voted{% else %}is-thinking{% endif %} {% if room.voting_status == 'revealed' %}is-revealed{% endif %}" id="participant-{{ p.id }}" data-participant-id="{{ p.id }}">
@@ -82,10 +88,11 @@
 
             <div class="room-controls">
                 {% if is_owner %}
-                    <button class="room-button room-button-primary" id="reveal-button" type="button" onclick="revealRoom()">Revelar votos</button>
-                    <button class="room-button room-button-secondary" id="reset-button" type="button" onclick="resetRoom()">Nueva ronda</button>
+                    <button class="room-button room-button-primary" id="reveal-button" type="button" onclick="revealRoom()"><span aria-hidden="true">◇</span> Revelar votos</button>
+                    <button class="room-button room-button-secondary" id="reset-button" type="button" onclick="resetRoom()"><span aria-hidden="true">↻</span> Nueva ronda</button>
                     <div id="finish-issue-panel" class="finish-issue" {% if room.voting_status != 'revealed' or not room.active_issue %}hidden{% endif %}>
-                        <input type="text" id="final-result-input" placeholder="Estimación final">
+                        <label class="sr-only" for="final-result-input">Estimación final</label>
+                        <input type="text" id="final-result-input" placeholder="Estimación final" inputmode="decimal">
                         <button class="room-button room-button-primary" type="button" onclick="finishIssue()">Guardar</button>
                     </div>
                 {% endif %}
@@ -94,10 +101,10 @@
         </section>
 
         <section class="room-deck-wrap" aria-label="Tu baraja" id="room-deck-wrap">
-            <div class="deck-heading"><strong>Tu carta</strong><span id="deck-help">El equipo sólo verá que votaste.</span></div>
+            <div class="deck-heading"><div><span class="deck-eyebrow">Tu baraja</span><strong>Elige una carta</strong></div><span id="deck-help">Tu elección permanece privada hasta el reveal.</span></div>
             <div class="deck" id="deck">
                 {% for card in deck_cards %}
-                    <button class="poker-card" type="button" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}>{{ card }}</button>
+                    <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" aria-label="Votar {{ card }}" aria-pressed="false" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
                 {% endfor %}
             </div>
         </section>
@@ -118,7 +125,7 @@ let votingStatus = "{{ room.voting_status }}";
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
-    toast.style.backgroundColor = isError ? 'var(--danger)' : 'var(--accent)';
+    toast.classList.toggle('is-error', isError);
     toast.classList.add('show');
     window.setTimeout(() => toast.classList.remove('show'), 3000);
 }
@@ -143,6 +150,11 @@ function createParticipantCard(participant) {
     const name = document.createElement('div');
     name.className = 'seat-name';
     name.textContent = participant.display_name;
+    if (participant.id === myParticipantId) {
+        const me = document.createElement('span');
+        me.textContent = 'Tú';
+        name.append(me);
+    }
     const state = document.createElement('div');
     state.className = 'seat-state';
     state.id = 'state-status-' + participant.id;
@@ -189,7 +201,7 @@ function renderActiveIssue(issue) {
     const dot = document.createElement('span');
     const label = document.createElement('span');
     label.id = 'round-label';
-    label.textContent = issue ? 'Votación abierta' : 'Esperando una historia';
+    label.textContent = votingStatus === 'revealed' ? 'Votos revelados' : issue ? 'Votación abierta' : 'Estimación libre';
     status.append(dot, label);
     const title = document.createElement('h1');
     title.textContent = issue ? issue.title : 'Esperando una historia';
@@ -215,21 +227,29 @@ function updateControls(activeIssue) {
         card.disabled = votingStatus === 'revealed';
     });
     document.getElementById('deck-help').textContent = votingStatus === 'revealed'
-        ? 'Los votos están revelados. Espera la siguiente ronda.'
-        : 'El equipo sólo verá que votaste.';
+        ? 'Los votos están sobre la mesa. Inicia una nueva ronda para continuar.'
+        : 'Tu elección permanece privada hasta el reveal.';
+}
+
+function syncSelectedCard() {
+    document.querySelectorAll('.poker-card').forEach(card => {
+        const selected = card.querySelector('span').textContent === myCurrentVote;
+        card.classList.toggle('selected', selected);
+        card.setAttribute('aria-pressed', String(selected));
+    });
 }
 
 function connect() {
     ws = new WebSocket(wsUrl);
     const status = document.getElementById('ws-status');
-    ws.onopen = () => { status.classList.add('is-live'); status.title = 'Connected'; };
+    ws.onopen = () => { status.classList.add('is-live'); status.title = 'Conectado'; status.querySelector('.connection-label').textContent = 'En vivo'; };
     ws.onmessage = event => {
         const data = JSON.parse(event.data);
         if (data.type === 'room.state') {
             votingStatus = data.payload.room.voting_status;
             data.payload.participants.forEach(renderParticipant);
             myCurrentVote = data.payload.your_vote;
-            document.querySelectorAll('.poker-card').forEach(card => card.classList.toggle('selected', card.textContent === myCurrentVote));
+            syncSelectedCard();
             renderActiveIssue(data.payload.active_issue);
             setResults(data.payload.results);
             updateControls(data.payload.active_issue);
@@ -252,7 +272,7 @@ function connect() {
         } else if (data.type === 'room.resetted') {
             votingStatus = 'voting';
             document.querySelectorAll('.table-seat').forEach(seat => renderParticipant({id: Number(seat.dataset.participantId), has_voted: false, is_online: !seat.classList.contains('is-offline'), current_vote: null}));
-            document.querySelectorAll('.poker-card').forEach(card => card.classList.remove('selected'));
+            document.querySelectorAll('.poker-card').forEach(card => { card.classList.remove('selected'); card.setAttribute('aria-pressed', 'false'); });
             myCurrentVote = null;
             setResults(null);
             updateControls(document.querySelector('#active-issue-display h1').textContent !== 'Estimación libre');
@@ -265,7 +285,7 @@ function connect() {
             updateControls(false);
         } else if (data.type === 'error') showToast(data.message || 'No se pudo completar la acción.', true);
     };
-    ws.onclose = () => { status.classList.remove('is-live'); status.title = 'Reconnecting'; window.setTimeout(connect, 2000); };
+    ws.onclose = () => { status.classList.remove('is-live'); status.title = 'Reconectando'; status.querySelector('.connection-label').textContent = 'Reconectando'; window.setTimeout(connect, 2000); };
 }
 
 function send(type, payload = {}) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type, ...payload})); }
@@ -273,7 +293,7 @@ function castVote(value, button) {
     if (button.disabled) return;
     const next = myCurrentVote === value ? null : value;
     myCurrentVote = next;
-    document.querySelectorAll('.poker-card').forEach(card => card.classList.toggle('selected', card === button && next));
+    syncSelectedCard();
     send('vote.cast', {value: next});
 }
 function revealRoom() { send('room.reveal'); }

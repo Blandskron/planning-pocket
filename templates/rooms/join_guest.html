@@ -1,15 +1,12 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Entrar a {{ room.name }} · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
 {% block content %}
-<div class="panel" style="max-width: 600px; margin: 0 auto; text-align: center;">
-    <h2>Join Room: {{ room.name }}</h2>
-    <p style="color:var(--text-muted); margin-bottom: 1.5rem;">Please enter your name to participate in this Planning Poker session.</p>
-    <form method="post" style="text-align: left;">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" style="width: 100%; margin-top: 1rem;">Join Room</button>
-    </form>
-</div>
+<section class="join-layout">
+    <div class="join-table-preview" aria-hidden="true"><span class="preview-seat seat-a"></span><span class="preview-seat seat-b"></span><span class="preview-seat seat-c"></span><span class="preview-seat seat-d"></span><div class="preview-table"><span>Planning<br>Pocket</span></div></div>
+    <div class="form-card-content join-content"><span class="eyebrow">Te invitaron a jugar</span><h1>{{ room.name }}</h1><p class="form-intro">Elige el nombre que verá el equipo. No necesitas crear una cuenta.</p>
+        <form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button type="submit" class="button button-primary button-block">Tomar asiento</button></form>
+        <p class="privacy-note"><span aria-hidden="true">●</span> Tu voto seguirá oculto hasta que el facilitador lo revele.</p>
+    </div>
+</section>
 {% endblock %}

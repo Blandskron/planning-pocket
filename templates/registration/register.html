@@ -1,17 +1,9 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Crear cuenta · Planning Pocket{% endblock %}
+{% block shell_class %}auth-shell{% endblock %}
 {% block content %}
-<div class="panel" style="max-width: 400px; margin: 2rem auto; text-align: center;">
-    <h2 style="margin-bottom: 1.5rem;">Create an Account</h2>
-    <form method="post" style="text-align: left;">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" style="width: 100%; margin-top: 1rem;">Register</button>
-    </form>
-    <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
-        Already have an account? <a href="{% url 'login' %}" style="color: var(--primary);">Login here</a>.
-    </p>
-</div>
+<section class="auth-card">
+    <div class="auth-promise"><span class="eyebrow eyebrow-light">Tu equipo, una mesa</span><h1>Menos ceremonia. Más conversación.</h1><p>Solo el facilitador necesita una cuenta. El resto del equipo entra con un enlace.</p><div class="auth-deck" aria-hidden="true"><span>1</span><span>2</span><span>3</span></div></div>
+    <div class="auth-form-wrap"><span class="eyebrow">Empieza ahora</span><h2>Crea tu cuenta</h2><p>Tu próxima sesión puede estar lista en menos de un minuto.</p><form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button type="submit" class="button button-primary button-block">Crear cuenta</button></form><p class="form-switch">¿Ya tienes una cuenta? <a href="{% url 'login' %}">Ingresa aquí</a></p></div>
+</section>
 {% endblock %}

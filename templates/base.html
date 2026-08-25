@@ -1,84 +1,81 @@
 <!DOCTYPE html>
 <!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% load static %}
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planning Pocket by Blandskron</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#111713" media="(prefers-color-scheme: dark)">
+    <title>{% block title %}Planning Pocket{% endblock %}</title>
     <script>
-        // Prevent FOUC
-        const storedTheme = localStorage.getItem('theme');
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (storedTheme === 'dark' || (!storedTheme && systemPrefersDark)) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
+        (() => {
+            let theme = null;
+            try { theme = localStorage.getItem('planning-pocket-theme'); } catch (_) {}
+            if (theme !== 'light' && theme !== 'dark') {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.dataset.theme = theme;
+        })();
     </script>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-    <header>
-        <h1><a href="{% url 'dashboard' %}" style="text-decoration:none; color:inherit;">Planning Pocket</a></h1>
-        
-        <div style="display:flex; gap:1.25rem; align-items:center;">
-            <div class="theme-switch-wrapper">
-                <button id="theme-toggle" class="theme-switch" title="Toggle Theme">
-                    <span id="theme-icon">◐</span>
-                </button>
-            </div>
+    <a class="skip-link" href="#main-content">Saltar al contenido</a>
+    <header class="site-header">
+        <a class="site-brand" href="{% url 'dashboard' %}" aria-label="Planning Pocket, inicio">
+            <span class="brand-mark" aria-hidden="true"><span>P</span></span>
+            <span class="brand-copy"><strong>Planning Pocket</strong><small>Decide en equipo</small></span>
+        </a>
+        <nav class="site-nav" aria-label="Navegación principal">
             {% if user.is_authenticated %}
-                <a href="{% url 'dashboard' %}" style="text-decoration:none; color:var(--text-muted); font-weight:500;">Dashboard</a>
-                <span style="color:var(--text-main); font-weight:600; padding: 0.25rem 0.75rem; background-color:var(--bg-color); border-radius:var(--radius-pill); border: 1px solid var(--border-color);">{{ user.username }}</span>
-                <form action="{% url 'logout' %}" method="post" style="display:inline; margin:0;">
+                <a class="nav-link" href="{% url 'dashboard' %}">Mis salas</a>
+                <span class="user-chip" title="Sesión iniciada como {{ user.username }}">
+                    <span class="user-avatar" aria-hidden="true">{{ user.username|slice:":1"|upper }}</span>
+                    <span class="user-name">{{ user.username }}</span>
+                </span>
+                <form action="{% url 'logout' %}" method="post" class="nav-form">
                     {% csrf_token %}
-                    <button type="submit" style="background:none; color:var(--text-muted); border:none; padding:0; box-shadow:none; font-weight:500;">Logout</button>
+                    <button type="submit" class="nav-link nav-button">Salir</button>
                 </form>
             {% else %}
-                <a href="{% url 'login' %}" style="text-decoration:none; color:var(--text-muted); font-weight:500;">Login</a>
-                <a href="{% url 'register' %}" style="text-decoration:none; color:var(--primary-text); background-color:var(--primary); padding:0.5rem 1rem; border-radius:var(--radius-md); font-weight:500;">Register</a>
+                <a class="nav-link" href="{% url 'login' %}">Ingresar</a>
+                <a class="button button-primary nav-register" href="{% url 'register' %}">Crear cuenta</a>
             {% endif %}
-        </div>
+            <button id="theme-toggle" class="icon-button" type="button" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+                <svg class="theme-icon theme-icon-sun" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+                <svg class="theme-icon theme-icon-moon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"/></svg>
+            </button>
+        </nav>
     </header>
-    <div class="container">
-        {% block content %}
-        {% endblock %}
-        
-        <div class="blandskron-mark">
-            <p>Designed & Engineered by <strong>Bastian Landskron</strong> &copy; {% now "Y" %}</p>
-            <p style="font-size: 0.65rem; margin-top: 0.25rem;">Cybersecurity, DevOps & AI Solutions</p>
-        </div>
-    </div>
-
+    <main class="page-shell {% block shell_class %}{% endblock %}" id="main-content" tabindex="-1">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        <span>Planning Pocket</span><span aria-hidden="true">·</span>
+        <span>Diseñado para decisiones honestas</span><span aria-hidden="true">·</span>
+        <span>&copy; {% now "Y" %} Blandskron</span>
+    </footer>
     <script>
-        // Theme Switcher Logic
+        const root = document.documentElement;
         const themeToggle = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-        
-        function updateIcon() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            themeIcon.innerText = currentTheme === 'dark' ? '☀' : '☾';
+        function syncThemeControl() {
+            const isDark = root.dataset.theme === 'dark';
+            const label = isDark ? 'Activar modo claro' : 'Activar modo oscuro';
+            themeToggle.setAttribute('aria-label', label);
+            themeToggle.title = label;
+            themeToggle.setAttribute('aria-pressed', String(isDark));
         }
-        
         themeToggle.addEventListener('click', () => {
-            let currentTheme = document.documentElement.getAttribute('data-theme');
-            let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateIcon();
+            root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+            try { localStorage.setItem('planning-pocket-theme', root.dataset.theme); } catch (_) {}
+            syncThemeControl();
         });
-        updateIcon();
-
-        // Global UX improvements
+        syncThemeControl();
         document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', function() {
-                const btn = this.querySelector('button[type="submit"]');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerText = 'Processing...';
-                }
+            form.addEventListener('submit', () => {
+                const button = form.querySelector('button[type="submit"]');
+                if (button) { button.classList.add('is-loading'); button.setAttribute('aria-disabled', 'true'); }
             });
         });
     </script>

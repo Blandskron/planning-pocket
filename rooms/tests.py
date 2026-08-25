@@ -61,7 +61,7 @@ class RoomsTests(TestCase):
         url = reverse('room_detail', args=[self.room.public_id])
         response = self.client.post(url, {'display_name': ''})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'This field is required.')
+        self.assertContains(response, 'Escribe tu nombre para entrar.')
         self.assertEqual(self.room.participants.count(), 0)
 
     def test_guest_refresh_preserves_identity(self):
@@ -85,13 +85,21 @@ class RoomsTests(TestCase):
         self.assertContains(response, 'table-seat')
         self.assertContains(response, 'Vota directamente o añade una historia')
         self.assertContains(
-            response, 'class="poker-card" type="button" onclick="castVote(\'0\', this)"'
+            response, 'aria-label="Votar 0" aria-pressed="false"'
         )
+
+    def test_room_detail_keeps_issue_controls_available_for_responsive_layouts(self):
+        self.client.login(username='owner', password='password123')
+        response = self.client.get(reverse('room_detail', args=[self.room.public_id]))
+
+        self.assertContains(response, 'class="room-sidebar"')
+        self.assertContains(response, 'Añadir historia')
+        self.assertContains(response, 'aria-label="Activar modo oscuro"')
 
     def test_cannot_join_closed_room(self):
         self.room.close_room()
         url = reverse('room_detail', args=[self.room.public_id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Room Closed')
+        self.assertContains(response, 'Esta mesa ya cerró')
         self.assertEqual(self.room.participants.count(), 0)

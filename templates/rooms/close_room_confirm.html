@@ -1,13 +1,6 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Cerrar {{ room.name }} · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
 {% block content %}
-    <h2>Close Room: {{ room.name }}</h2>
-    <p>Are you sure you want to close this room?</p>
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit">Yes, Close</button>
-        <a href="{% url 'room_detail' room.public_id %}">Cancel</a>
-    </form>
+<section class="decision-card"><span class="decision-icon" aria-hidden="true">×</span><span class="eyebrow">Acción irreversible</span><h1>¿Cerrar “{{ room.name }}”?</h1><p>Los participantes dejarán de poder entrar y esta sala quedará marcada como cerrada.</p><form method="post" class="decision-actions">{% csrf_token %}<a href="{% url 'room_detail' room.public_id %}" class="button button-secondary">Cancelar</a><button type="submit" class="button button-danger">Sí, cerrar sala</button></form></section>
 {% endblock %}

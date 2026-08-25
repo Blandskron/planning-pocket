@@ -23,7 +23,7 @@ class AccountsTests(TestCase):
         self.client.login(username=self.username, password=self.password)
         response = self.client.get(reverse('dashboard'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Your Rooms")
+        self.assertContains(response, "Tus salas")
         self.assertContains(response, self.username)
 
     def test_login_valid(self):
@@ -41,8 +41,7 @@ class AccountsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "Please enter a correct username and password. "
-            "Note that both fields may be case-sensitive."
+            "El nombre de usuario o la contraseña no son correctos."
         )
 
     def test_logout(self):

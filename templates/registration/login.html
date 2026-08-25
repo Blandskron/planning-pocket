@@ -1,17 +1,9 @@
-<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
-<!-- Author: Bastian Landskron (Cybersecurity, DevOps & AI) -->
 {% extends 'base.html' %}
-
+{% block title %}Ingresar · Planning Pocket{% endblock %}
+{% block shell_class %}auth-shell{% endblock %}
 {% block content %}
-<div class="panel" style="max-width: 400px; margin: 2rem auto; text-align: center;">
-    <h2 style="margin-bottom: 1.5rem;">Login to Planning Pocket</h2>
-    <form method="post" style="text-align: left;">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" style="width: 100%; margin-top: 1rem;">Login</button>
-    </form>
-    <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
-        Don't have an account? <a href="{% url 'register' %}" style="color: var(--primary);">Register here</a>.
-    </p>
-</div>
+<section class="auth-card">
+    <div class="auth-promise"><span class="eyebrow eyebrow-light">Planning sin fricción</span><h1>Las mejores decisiones empiezan con votos honestos.</h1><p>Crea la sala, comparte un enlace y deja que cada persona elija su carta en privado.</p><div class="auth-deck" aria-hidden="true"><span>3</span><span>5</span><span>8</span></div></div>
+    <div class="auth-form-wrap"><span class="eyebrow">Bienvenido de vuelta</span><h2>Ingresa a tu cuenta</h2><p>Continúa donde quedó tu equipo.</p><form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}<button type="submit" class="button button-primary button-block">Ingresar</button></form><p class="form-switch">¿Aún no tienes cuenta? <a href="{% url 'register' %}">Créala gratis</a></p></div>
+</section>
 {% endblock %}
