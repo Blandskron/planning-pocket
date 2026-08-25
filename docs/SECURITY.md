@@ -22,6 +22,9 @@ Dado el enfoque colaborativo de la herramienta, se han identificado las siguient
   - Verificación estricta de pertenencia (un participante solo se suscribe al grupo Channel de su propia sala).
   - Rate Limiting básico contra payloads abusivos si es necesario.
 
+La aplicación ASGI aplica `AllowedHostsOriginValidator`. Los clientes con un origen no incluido en
+`DJANGO_ALLOWED_HOSTS` son rechazados antes de establecer la conexión.
+
 ## 5. Prevención de Enumeración
 - **Riesgo:** Un atacante intenta barrer identificadores enteros secuenciales (`/p/1`, `/p/2`) para encontrar salas privadas.
 - **Mitigación:** Las salas utilizarán un `public_id` seguro, largo e impredecible (ej. NanoID o UUID simplificado) para la URL.
@@ -31,3 +34,16 @@ Dado el enfoque colaborativo de la herramienta, se han identificado las siguient
 - **Mitigación:** 
   - Django previene nativamente XSS en sus templates escapando el contenido.
   - Se aplicarán validaciones de longitud máxima y saneamiento básico de texto libre.
+
+Los eventos WebSocket se insertan en el DOM mediante nodos y `textContent`, nunca interpolando
+HTML con datos de participantes o issues.
+
+## 7. Configuración de producción
+
+- `DJANGO_SECRET_KEY` y `DJANGO_ALLOWED_HOSTS` son obligatorios con `DJANGO_DEBUG=False`; no hay
+  valores de respaldo inseguros.
+- `DATABASE_URL` admite URLs `postgres://`/`postgresql://` y configura PostgreSQL; sin ella se usa
+  SQLite sólo para desarrollo local.
+- `DJANGO_CSRF_TRUSTED_ORIGINS` debe contener los orígenes HTTPS públicos separados por comas.
+- HSTS, cookies seguras, redirección HTTPS y el backend SMTP se activan en producción. Docker no
+  incorpora secretos: deben entregarse como variables de entorno en tiempo de ejecución.

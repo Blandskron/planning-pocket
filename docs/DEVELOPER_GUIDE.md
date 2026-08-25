@@ -21,13 +21,22 @@ All critical logic, privacy checks, and state transitions are handled exclusivel
 
 ## 3. Data Flow & WebSockets (`rooms/consumers.py`)
 
-The `PokerConsumer` is the heart of the real-time application.
+`rooms/services.py` is the source of truth for voting-round rules: it validates the
+facilitator, room and round state, deck values, issue transitions and final estimates.
+`PokerConsumer` adapts validated WebSocket intents to those services and broadcasts their
+result; it does not decide business rules itself.
 
 ### Connection Lifecycle
 1. **Connect**: The browser establishes a WebSocket connection to `ws/room/<public_id>/`.
 2. **Authentication**: The consumer reads the Django session to identify if the connection belongs to the Owner, a registered User, or a Guest (using `guest_tokens` map).
-3. **Join Event**: The consumer joins a channel group (`room_<public_id>`) and broadcasts `participant.joined`.
-4. **Disconnect**: On socket close, it broadcasts `participant.left`.
+3. **State sync**: The server sends `room.state`, including only display-safe vote state. A participant's own vote is returned only to that participant so the selected card can be restored after reconnecting.
+4. **Join Event**: The consumer joins a channel group (`room_<public_id>`) and broadcasts `participant.joined` only when the participant's first active tab connects.
+5. **Disconnect**: It broadcasts `participant.left` only after the participant's final active tab closes.
+
+Every incoming message is parsed and validated before reaching a service. Invalid payloads,
+unknown actions and failed server-side rules produce a structured `error` response only for the
+originating socket. The ASGI application also validates WebSocket origins through
+`AllowedHostsOriginValidator`.
 
 ### Event Dispatcher
 The `receive` method handles incoming JSON payloads via `event_type`.
@@ -52,6 +61,21 @@ The repository follows a test-first approach for critical rules:
 - **Unit Tests**: Ensure model methods (`reset_voting`, `close_room`) update states properly.
 - **Integration Tests**: Verify HTTP view logic, session injections, and URL security.
 - **WebSocket Tests**: Built using `channels.testing.WebsocketCommunicator`. These tests simulate the ASGI protocol directly, ensuring that JSON payloads are correctly formed and privacy filters work during active voting rounds.
+
+### Ejecutar la validación local
+
+Usa Python 3.11 o superior y crea un entorno virtual con `python -m venv .venv`.
+Después de instalar `requirements-dev.txt`, ejecuta:
+
+```powershell
+python -m pytest . -p no:cacheprovider
+python -m ruff check .
+python manage.py check
+```
+
+Pytest usa `config.settings_test`, aislado de las variables de producción, HTTPS forzado y
+manifiestos de archivos estáticos. No se debe usar `check --deploy` sin una configuración de
+producción real: sus hallazgos se corrigen en el trabajo de endurecimiento de despliegue.
 
 ## 5. UI/UX Guidelines
 

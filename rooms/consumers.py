@@ -1,221 +1,188 @@
-# Copyright (c) 2026 Blandskron. All rights reserved.
-# Author: Bastian Landskron (Cybersecurity, DevOps & AI)
+"""WebSocket protocol for the collaborative Planning Poker room."""
 
 import json
+from json import JSONDecodeError
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.db import transaction
+from django.db.models import F
 
-from .models import Participant, PokerRoom
+from .models import Issue, Participant, PokerRoom
+from .services import (
+    RoomActionError,
+    calculate_results,
+    cast_vote,
+    finish_active_issue,
+    reset_round,
+    reveal_round,
+)
+from .services import (
+    activate_issue as activate_room_issue,
+)
 
 
 class PokerConsumer(AsyncWebsocketConsumer):
+    """Accepts validated room actions and broadcasts server-authoritative state."""
+
     async def connect(self):
-        """
-        Handles new WebSocket connections.
-        Authenticates the user (via session or standard Auth) and assigns them to the room group.
-        Broadcasts a 'participant.joined' event to all other clients in the room.
-        """
-        self.public_id = self.scope['url_route']['kwargs']['public_id']
-        self.room_group_name = f'room_{self.public_id}'
-
-        # Resolve participant
-        import logging
-        logger = logging.getLogger(__name__)
-
-        try:
-            self.participant = await self.get_participant()
-        except Exception as e:
-            logger.error(f"Error resolving participant: {e}")
-            self.participant = None
-
+        self.public_id = self.scope["url_route"]["kwargs"]["public_id"]
+        self.room_group_name = f"room_{self.public_id}"
+        self.participant = await self.get_participant()
         if not self.participant:
-            logger.warning("Participant not found or error, closing.")
-            await self.close()
+            await self.close(code=4403)
             return
 
-        # Join room group
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
+        self.was_offline = await self.participant_connected()
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        await self.send_room_state()
 
-        # Notify others
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'participant.joined',
-                'participant': {
-                    'id': self.participant.id,
-                    'display_name': self.participant.display_name
-                }
-            }
-        )
-
-    async def disconnect(self, close_code):
-        """
-        Handles WebSocket disconnections.
-        Removes the connection from the room group and broadcasts a 'participant.left' event.
-        Note: The participant record is kept in the database to allow reconnections.
-        """
-        if hasattr(self, 'participant') and self.participant:
-            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        if self.was_offline:
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    'type': 'participant.left',
-                    'participant_id': self.participant.id
-                }
+                    "type": "participant.joined",
+                    "participant": {
+                        "id": self.participant.id,
+                        "display_name": self.participant.display_name,
+                    },
+                },
+            )
+
+    async def disconnect(self, close_code):
+        if not hasattr(self, "participant") or not self.participant:
+            return
+
+        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        is_now_offline = await self.participant_disconnected()
+        if is_now_offline:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "participant.left",
+                    "participant_id": self.participant.id,
+                },
             )
 
     async def receive(self, text_data):
-        """
-        Main router for incoming WebSocket messages from the client.
-        Enforces security (Facilitator-only actions vs Guest actions).
-        """
-        data = json.loads(text_data)
-        event_type = data.get('type')
-
-        if not self.participant:
+        try:
+            data = json.loads(text_data)
+        except JSONDecodeError:
+            await self.send_error("invalid_payload", "The message must be valid JSON.")
             return
 
-        if event_type == 'vote.cast':
-            vote_value = data.get('value')
-            await self.save_vote(vote_value)
+        if not isinstance(data, dict):
+            await self.send_error("invalid_payload", "The message must be a JSON object.")
+            return
 
-            # Broadcast that this participant voted or un-voted
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'participant.voted',
-                    'participant_id': self.participant.id,
-                    'value': vote_value
-                }
-            )
+        event_type = data.get("type")
+        if event_type not in {
+            "vote.cast",
+            "room.reveal",
+            "room.reset",
+            "issue.activate",
+            "issue.finish",
+        }:
+            await self.send_error("unknown_action", "This action is not supported.")
+            return
 
-        elif event_type == 'room.reveal':
-            # Check if owner
-            is_owner = await self.is_room_owner()
-            if is_owner:
-                await self.reveal_room()
-                # Broadcast reveal
-                participants_state = await self.get_all_participants_state()
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'room.revealed',
-                        'participants': participants_state
-                    }
-                )
+        if event_type == "vote.cast":
+            await self.handle_vote(data)
+        elif event_type == "room.reveal":
+            await self.handle_reveal()
+        elif event_type == "room.reset":
+            await self.handle_reset()
+        elif event_type == "issue.activate":
+            await self.handle_issue_activation(data)
+        elif event_type == "issue.finish":
+            await self.handle_issue_finish(data)
 
-        elif event_type == 'room.reset':
-            is_owner = await self.is_room_owner()
-            if is_owner:
-                await self.reset_room()
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'room.resetted'
-                    }
-                )
+    async def handle_vote(self, data):
+        value = data.get("value")
+        if value is not None and not isinstance(value, str):
+            await self.send_error("invalid_payload", "A vote must be a card value or null.")
+            return
 
-        elif event_type == 'issue.activate':
-            is_owner = await self.is_room_owner()
-            if is_owner:
-                issue_id = data.get('issue_id')
-                await self.activate_issue(issue_id)
-                issue_data = await self.get_issue_data(issue_id)
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'issue.activated',
-                        'issue': issue_data
-                    }
-                )
+        try:
+            await self.save_vote(value)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
 
-        elif event_type == 'issue.finish':
-            is_owner = await self.is_room_owner()
-            if is_owner:
-                final_result = data.get('final_result')
-                issue_data = await self.finish_active_issue(final_result)
-                if issue_data:
-                    await self.channel_layer.group_send(
-                        self.room_group_name,
-                        {
-                            'type': 'issue.finished',
-                            'issue': issue_data
-                        }
-                    )
-                    # Reset room after finishing
-                    await self.channel_layer.group_send(
-                        self.room_group_name,
-                        {
-                            'type': 'room.resetted'
-                        }
-                    )
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "participant.voted",
+                "participant_id": self.participant.id,
+                "has_voted": value is not None,
+            },
+        )
 
-    # Database operations
-    @database_sync_to_async
-    def save_vote(self, value):
-        """
-        Persists a vote to the database if the room is currently in 'voting' mode.
-        """
-        room = PokerRoom.objects.get(public_id=self.public_id)
-        if room.voting_status == 'voting':
-            self.participant.current_vote = value
-            self.participant.save(update_fields=['current_vote'])
+    async def handle_reveal(self):
+        try:
+            results = await self.reveal_room()
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
 
-    @database_sync_to_async
-    def is_room_owner(self):
-        """Checks if the connected user is the creator/facilitator of the room."""
-        user = self.scope.get('user')
-        if not user or not user.is_authenticated:
-            return False
-        room = PokerRoom.objects.get(public_id=self.public_id)
-        return room.owner == user
+        participants = await self.get_all_participants_state()
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "room.revealed", "participants": participants, "results": results},
+        )
 
-    @database_sync_to_async
-    def reveal_room(self):
-        """Transitions the room status to 'revealed', locking votes."""
-        room = PokerRoom.objects.get(public_id=self.public_id)
-        room.voting_status = 'revealed'
-        room.save(update_fields=['voting_status'])
+    async def handle_reset(self):
+        try:
+            await self.reset_room()
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
 
-    @database_sync_to_async
-    def reset_room(self):
-        """Clears all votes and restarts the voting phase."""
-        room = PokerRoom.objects.get(public_id=self.public_id)
-        room.reset_voting()
+        await self.channel_layer.group_send(self.room_group_name, {"type": "room.resetted"})
 
-    @database_sync_to_async
-    def get_all_participants_state(self):
-        """Returns the serialized state of all participants, applying privacy filters."""
-        room = PokerRoom.objects.get(public_id=self.public_id)
-        return [self._get_participant_state_sync(p, room) for p in room.participants.all()]
+    async def handle_issue_activation(self, data):
+        issue_id = data.get("issue_id")
+        if isinstance(issue_id, bool) or not isinstance(issue_id, int):
+            await self.send_error("invalid_payload", "An issue id must be an integer.")
+            return
 
-    @staticmethod
-    def _get_participant_state_sync(participant, room):
-        """
-        CRITICAL SECURITY RULE: Privacy logic.
-        If the room is not revealed, the actual 'current_vote' payload is forcefully 
-        blanked out (set to None) before being sent to the client, preventing inspection via DevTools.
-        """
-        state = {
-            'id': participant.id,
-            'display_name': participant.display_name,
-            'has_voted': participant.current_vote is not None,
-        }
-        if room.voting_status == 'revealed':
-            state['current_vote'] = participant.current_vote
-        else:
-            state['current_vote'] = None
+        try:
+            issue = await self.activate_issue(issue_id)
+        except (Issue.DoesNotExist, RoomActionError) as error:
+            await self.send_error("invalid_action", str(error))
+            return
 
-        return state
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "issue.activated", "issue": issue},
+        )
+        await self.channel_layer.group_send(self.room_group_name, {"type": "room.resetted"})
 
-    @staticmethod
-    def _get_participant_state(participant, room):
-        return PokerConsumer._get_participant_state_sync(participant, room)
+    async def handle_issue_finish(self, data):
+        final_result = data.get("final_result")
+        if not isinstance(final_result, str):
+            await self.send_error("invalid_payload", "A final estimate must be a card value.")
+            return
+
+        try:
+            issue = await self.finish_active_issue(final_result)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "issue.finished", "issue": issue},
+        )
+        await self.channel_layer.group_send(self.room_group_name, {"type": "room.resetted"})
+
+    async def send_error(self, code, message):
+        await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
+
+    async def send_room_state(self):
+        state = await self.get_room_state()
+        await self.send(text_data=json.dumps({"type": "room.state", "payload": state}))
 
     @database_sync_to_async
     def get_participant(self):
@@ -224,104 +191,162 @@ class PokerConsumer(AsyncWebsocketConsumer):
         except PokerRoom.DoesNotExist:
             return None
 
-        user = self.scope.get('user')
+        user = self.scope.get("user")
         if user and user.is_authenticated:
             return Participant.objects.filter(room=room, user=user).first()
-        else:
-            session = self.scope.get('session', {})
-            guest_tokens = session.get('guest_tokens', {})
-            room_token = guest_tokens.get(str(room.id))
-            if room_token:
-                return Participant.objects.filter(room=room, guest_token=room_token).first()
+
+        session = self.scope.get("session", {})
+        room_token = session.get("guest_tokens", {}).get(str(room.id))
+        if room_token:
+            return Participant.objects.filter(room=room, guest_token=room_token).first()
         return None
 
-    # Event Handlers
-    async def participant_joined(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'participant.joined',
-            'participant': event['participant']
-        }))
+    @database_sync_to_async
+    def participant_connected(self):
+        with transaction.atomic():
+            participant = Participant.objects.select_for_update().get(pk=self.participant.id)
+            was_offline = participant.connection_count == 0
+            Participant.objects.filter(pk=participant.id).update(
+                connection_count=F("connection_count") + 1
+            )
+            return was_offline
 
-    async def participant_left(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'participant.left',
-            'participant_id': event['participant_id']
-        }))
+    @database_sync_to_async
+    def participant_disconnected(self):
+        with transaction.atomic():
+            participant = Participant.objects.select_for_update().get(pk=self.participant.id)
+            if participant.connection_count == 0:
+                return False
+            participant.connection_count -= 1
+            participant.save(update_fields=["connection_count"])
+            return participant.connection_count == 0
 
-    async def participant_voted(self, event):
-        # We only send whether the user has voted or not, NOT the actual value for privacy
-        await self.send(text_data=json.dumps({
-            'type': 'participant.voted',
-            'participant_id': event['participant_id'],
-            'value': 'voted' if event.get('value') is not None else None
-        }))
+    @database_sync_to_async
+    def save_vote(self, value):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        cast_vote(room.id, self.participant.id, value)
 
-    async def room_revealed(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'room.revealed',
-            'participants': event['participants']
-        }))
+    @database_sync_to_async
+    def reveal_room(self):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        _, results = reveal_round(room.id, self.scope.get("user"))
+        return results
 
-    async def room_resetted(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'room.resetted'
-        }))
-
-    async def issue_activated(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'issue.activated',
-            'issue': event['issue']
-        }))
+    @database_sync_to_async
+    def reset_room(self):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        reset_round(room.id, self.scope.get("user"))
 
     @database_sync_to_async
     def activate_issue(self, issue_id):
-        from .models import Issue
         room = PokerRoom.objects.get(public_id=self.public_id)
-        issue = Issue.objects.get(id=issue_id, room=room)
-
-        room.active_issue = issue
-        room.save(update_fields=['active_issue'])
-
-        issue.status = 'active'
-        issue.save(update_fields=['status'])
-
-    @database_sync_to_async
-    def get_issue_data(self, issue_id):
-        from .models import Issue
-        issue = Issue.objects.get(id=issue_id)
-        return {
-            'id': issue.id,
-            'title': issue.title,
-            'description': issue.description,
-            'status': issue.status,
-            'final_result': issue.final_result,
-        }
-
-    async def issue_finished(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'issue.finished',
-            'issue': event['issue']
-        }))
+        issue = activate_room_issue(room.id, issue_id, self.scope.get("user"))
+        return self.serialize_issue(issue)
 
     @database_sync_to_async
     def finish_active_issue(self, final_result):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        if room.active_issue:
-            issue = room.active_issue
-            issue.final_result = final_result
-            issue.status = 'estimated'
-            issue.save(update_fields=['final_result', 'status'])
+        issue = finish_active_issue(room.id, final_result, self.scope.get("user"))
+        return self.serialize_issue(issue)
 
-            # Clear active issue and reset room
-            room.active_issue = None
-            room.reset_voting()
-            room.save(update_fields=['active_issue'])
+    @database_sync_to_async
+    def get_all_participants_state(self):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        return [
+            self._participant_state(participant, room) for participant in room.participants.all()
+        ]
 
-            return {
-                'id': issue.id,
-                'title': issue.title,
-                'description': issue.description,
-                'status': issue.status,
-                'final_result': issue.final_result,
-            }
-        return None
+    @database_sync_to_async
+    def get_room_state(self):
+        room = PokerRoom.objects.select_related("active_issue").get(public_id=self.public_id)
+        results = calculate_results(room) if room.voting_status == "revealed" else None
+        user = self.scope.get("user")
+        is_facilitator = bool(user and user.is_authenticated and user.pk == room.owner_id)
+        return {
+            "room": {
+                "status": room.status,
+                "voting_status": room.voting_status,
+                "deck": room.deck.split(","),
+                "is_facilitator": is_facilitator,
+            },
+            "active_issue": self.serialize_issue(room.active_issue) if room.active_issue else None,
+            "participants": [
+                self._participant_state(participant, room)
+                for participant in room.participants.all()
+            ],
+            "your_vote": Participant.objects.get(pk=self.participant.id).current_vote,
+            "results": results,
+        }
+
+    @staticmethod
+    def serialize_issue(issue):
+        return {
+            "id": issue.id,
+            "title": issue.title,
+            "description": issue.description,
+            "status": issue.status,
+            "final_result": issue.final_result,
+        }
+
+    @staticmethod
+    def _participant_state(participant, room):
+        state = {
+            "id": participant.id,
+            "display_name": participant.display_name,
+            "has_voted": participant.current_vote is not None,
+            "is_online": participant.connection_count > 0,
+        }
+        state["current_vote"] = (
+            participant.current_vote if room.voting_status == "revealed" else None
+        )
+        return state
+
+    @staticmethod
+    def _get_participant_state(participant, room):
+        """Backward-compatible helper for existing privacy tests."""
+        return PokerConsumer._participant_state(participant, room)
+
+    async def participant_joined(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "participant.joined", "participant": event["participant"]}
+            )
+        )
+
+    async def participant_left(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "participant.left", "participant_id": event["participant_id"]}
+            )
+        )
+
+    async def participant_voted(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "participant.voted",
+                    "participant_id": event["participant_id"],
+                    "has_voted": event["has_voted"],
+                }
+            )
+        )
+
+    async def room_revealed(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "room.revealed",
+                    "participants": event["participants"],
+                    "results": event["results"],
+                }
+            )
+        )
+
+    async def room_resetted(self, event):
+        await self.send(text_data=json.dumps({"type": "room.resetted"}))
+
+    async def issue_activated(self, event):
+        await self.send(text_data=json.dumps({"type": "issue.activated", "issue": event["issue"]}))
+
+    async def issue_finished(self, event):
+        await self.send(text_data=json.dumps({"type": "issue.finished", "issue": event["issue"]}))

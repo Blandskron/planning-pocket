@@ -11,7 +11,7 @@ from .utils import generate_guest_token, generate_public_id
 class PokerRoom(models.Model):
     """
     Represents a Planning Poker room.
-    
+
     A room is created by a Facilitator (owner) and can host multiple Participants.
     It manages the global state of the voting process (voting vs revealed),
     the current deck of cards, and points to the currently active issue being estimated.
@@ -34,8 +34,8 @@ class PokerRoom(models.Model):
     name = models.CharField(max_length=100)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     voting_status = models.CharField(
-        max_length=20, 
-        choices=VOTING_STATUS_CHOICES, 
+        max_length=20,
+        choices=VOTING_STATUS_CHOICES,
         default='voting',
         help_text="Controls the privacy of votes. If 'voting', votes are hidden from clients."
     )
@@ -83,6 +83,7 @@ class Issue(models.Model):
     """
     STATUS_CHOICES = (
         ('pending', 'Pending'),
+        ('active', 'Active'),
         ('estimated', 'Estimated'),
     )
     room = models.ForeignKey(PokerRoom, on_delete=models.CASCADE, related_name='issues')
@@ -110,8 +111,8 @@ class Participant(models.Model):
     )
     display_name = models.CharField(max_length=50)
     current_vote = models.CharField(
-        max_length=20, 
-        null=True, 
+        max_length=20,
+        null=True,
         blank=True,
         help_text="The value voted. Set to null if they haven't voted or retracted their vote."
     )
@@ -125,6 +126,7 @@ class Participant(models.Model):
         help_text="Session-linked token for tracking guest identities without user accounts."
     )
     joined_at = models.DateTimeField(auto_now_add=True)
+    connection_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('room', 'user')  # A registered user can only join a room once

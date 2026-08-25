@@ -14,16 +14,18 @@ import os
 
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+# Auto-create superuser if credentials are in environment
+from django.contrib.auth import get_user_model  # noqa: E402
 
 django_asgi_app = get_asgi_application()
 
 import rooms.routing  # noqa: E402
 
-# Auto-create superuser if credentials are in environment
-from django.contrib.auth import get_user_model  # noqa: E402
 User = get_user_model()
 su_username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
 su_email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
@@ -43,9 +45,7 @@ if su_username and su_password:
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AuthMiddlewareStack(
-        URLRouter(
-            rooms.routing.websocket_urlpatterns
-        )
+    "websocket": AllowedHostsOriginValidator(
+        AuthMiddlewareStack(URLRouter(rooms.routing.websocket_urlpatterns))
     ),
 })

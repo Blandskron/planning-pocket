@@ -4,11 +4,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DJANGO_DEBUG=False
-      - DJANGO_SECRET_KEY=super-secret-key-for-production-change-me
-      - DJANGO_ALLOWED_HOSTS=*
-      - DATABASE_URL=postgres://user:password@db:5432/planning_pocket
-      - REDIS_URL=redis://redis:6379/0
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in your environment}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-false}
+      DATABASE_URL: postgres://user:password@db:5432/planning_pocket
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis

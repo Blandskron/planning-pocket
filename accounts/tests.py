@@ -23,7 +23,8 @@ class AccountsTests(TestCase):
         self.client.login(username=self.username, password=self.password)
         response = self.client.get(reverse('dashboard'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f"Welcome, {self.username}!")
+        self.assertContains(response, "Your Rooms")
+        self.assertContains(response, self.username)
 
     def test_login_valid(self):
         response = self.client.post(reverse('login'), {

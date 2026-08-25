@@ -20,8 +20,8 @@ RUN pip install -r requirements.txt
 # Copy project files
 COPY . /app/
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Collect static files without requiring a runtime production secret during image build.
+RUN DJANGO_DEBUG=True DJANGO_SECRET_KEY=build-only-key python manage.py collectstatic --noinput
 
 # Expose the port
 EXPOSE 8000

@@ -5,6 +5,7 @@ daphne==4.2.3
 Django==6.1
 djangorestframework==3.18.0
 python-dotenv==1.2.3
+psycopg2-binary==2.9.11
 redis==8.1.0
 tzdata==2026.3
 whitenoise==6.7.0

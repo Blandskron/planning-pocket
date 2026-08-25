@@ -135,6 +135,52 @@
             }
         }
 
+        function createParticipantCard(participant) {
+            const item = document.createElement('div');
+            item.className = 'participant-card';
+            item.id = 'participant-' + participant.id;
+
+            const info = document.createElement('div');
+            info.className = 'participant-info';
+            const avatar = document.createElement('div');
+            avatar.className = 'participant-avatar';
+            avatar.textContent = participant.display_name.charAt(0).toUpperCase();
+            const name = document.createElement('div');
+            name.className = 'participant-name';
+            name.textContent = participant.display_name;
+            info.append(avatar, name);
+
+            const status = document.createElement('div');
+            status.id = 'vote-status-' + participant.id;
+            status.className = 'vote-status status-thinking';
+            status.textContent = 'Thinking...';
+            item.append(info, status);
+            return item;
+        }
+
+        function renderActiveIssue(issue) {
+            const display = document.getElementById('active-issue-display');
+            if (!display) return;
+            display.replaceChildren();
+
+            const text = document.createElement(issue ? 'h3' : 'p');
+            if (issue) {
+                text.style.cssText = 'border:none; margin:0; font-size:1.5rem;';
+                text.textContent = issue.title;
+                display.append(text);
+                if (issue.description) {
+                    const description = document.createElement('p');
+                    description.style.color = 'var(--text-muted)';
+                    description.textContent = issue.description;
+                    display.append(description);
+                }
+            } else {
+                text.style.cssText = 'color:var(--text-muted); font-style:italic;';
+                text.textContent = 'No active issue. Waiting for facilitator...';
+                display.append(text);
+            }
+        }
+
         function connect() {
             ws = new WebSocket(wsUrl);
             const statusDot = document.getElementById('ws-status');
@@ -150,20 +196,33 @@
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 
-                if (data.type === 'participant.joined') {
+                if (data.type === 'room.state') {
+                    const state = data.payload;
+                    state.participants.forEach(p => {
+                        const statusDiv = document.getElementById('vote-status-' + p.id);
+                        if (!statusDiv) return;
+
+                        if (state.room.voting_status === 'revealed' && p.has_voted) {
+                            statusDiv.innerText = p.current_vote;
+                            statusDiv.className = 'vote-status status-revealed';
+                        } else if (p.has_voted) {
+                            statusDiv.innerText = 'Voted';
+                            statusDiv.className = 'vote-status status-voted';
+                        } else {
+                            statusDiv.innerText = 'Thinking...';
+                            statusDiv.className = 'vote-status status-thinking';
+                        }
+                    });
+
+                    myCurrentVote = state.your_vote;
+                    document.querySelectorAll('.poker-card').forEach(btn => {
+                        btn.classList.toggle('selected', btn.innerText === myCurrentVote);
+                    });
+                } else if (data.type === 'participant.joined') {
                     const list = document.getElementById('participants-list');
                     let item = document.getElementById('participant-' + data.participant.id);
                     if (!item) {
-                        item = document.createElement('div');
-                        item.className = 'participant-card';
-                        item.id = 'participant-' + data.participant.id;
-                        item.innerHTML = `
-                            <div class="participant-info">
-                                <div class="participant-avatar">${data.participant.display_name.charAt(0).toUpperCase()}</div>
-                                <div class="participant-name">${data.participant.display_name}</div>
-                            </div>
-                            <div id="vote-status-${data.participant.id}" class="vote-status status-thinking">Thinking...</div>
-                        `;
+                        item = createParticipantCard(data.participant);
                         list.appendChild(item);
                         
                         const emptyLi = document.getElementById('no-participants');
@@ -175,7 +234,7 @@
                 } else if (data.type === 'participant.voted') {
                     const statusDiv = document.getElementById('vote-status-' + data.participant_id);
                     if (statusDiv) {
-                        if (data.value === null) {
+                        if (!data.has_voted) {
                             statusDiv.innerText = 'Thinking...';
                             statusDiv.className = 'vote-status status-thinking';
                         } else {
@@ -222,15 +281,11 @@
                         finishPanel.style.display = 'none';
                     }
                 } else if (data.type === 'issue.activated') {
-                    const display = document.getElementById('active-issue-display');
-                    if (display) {
-                        display.innerHTML = `<h3 style="border:none; margin:0; font-size:1.5rem;">${data.issue.title}</h3><p style="color:var(--text-muted);">${data.issue.description}</p>`;
-                    }
+                    renderActiveIssue(data.issue);
                 } else if (data.type === 'issue.finished') {
-                    const display = document.getElementById('active-issue-display');
-                    if (display) {
-                        display.innerHTML = `<p style="color:var(--text-muted); font-style:italic;">No active issue. Waiting for facilitator...</p>`;
-                    }
+                    renderActiveIssue(null);
+                } else if (data.type === 'error') {
+                    showToast(data.message || 'The action could not be completed.', true);
                 }
             };
 

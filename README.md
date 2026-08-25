@@ -19,9 +19,10 @@ Planning Pocket is a fast, modern, and privacy-first web application for Agile t
 
 ### 1. Setup Environment
 ```powershell
+python --version # Python 3.11+ is required
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt
 ```
 
 ### 2. Database Setup
@@ -37,7 +38,9 @@ Navigate to `http://localhost:8000`.
 
 ### 4. Running Tests
 ```powershell
-python -m pytest .
+python -m pytest . -p no:cacheprovider
+python -m ruff check .
+python manage.py check
 ```
 
 ## Production Deployment
@@ -48,6 +51,10 @@ This project includes a `Dockerfile` and `docker-compose.yml` pre-configured for
 # Set your environment variables in a .env file or export them
 docker-compose up --build -d
 ```
+
+For production, set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`,
+`DJANGO_CSRF_TRUSTED_ORIGINS`, and (when not using the included Compose database)
+`DATABASE_URL`. Start from `.env.example`; do not commit a real `.env` file.
 
 ## Security & Architecture Philosophy
 - **Server as the Source of Truth:** All business validations and privacy locks are implemented on the Django consumer. The browser is a dumb terminal.

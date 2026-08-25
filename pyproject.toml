@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings"
+DJANGO_SETTINGS_MODULE = "config.settings_test"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--nomigrations --tb=short"
 
@@ -16,6 +16,7 @@ target-version = "py311"
 exclude = [
     ".git",
     ".venv",
+    ".venv*",
     "migrations",
 ]
 
