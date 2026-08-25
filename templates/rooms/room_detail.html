@@ -54,8 +54,8 @@
                     <h1>{{ room.active_issue.title }}</h1>
                     <p>{{ room.active_issue.description }}</p>
                 {% else %}
-                    <h1>Esperando una historia</h1>
-                    <p>El facilitador seleccionará la siguiente historia a estimar.</p>
+                    <h1>Estimación libre</h1>
+                    <p>Vota directamente o añade una historia para organizar la sesión.</p>
                 {% endif %}
             </div>
 
@@ -93,11 +93,11 @@
             </div>
         </section>
 
-        <section class="room-deck-wrap" aria-label="Tu baraja">
-            <div class="deck-heading"><strong>Tu carta</strong><span>El equipo sólo verá que votaste.</span></div>
+        <section class="room-deck-wrap" aria-label="Tu baraja" id="room-deck-wrap">
+            <div class="deck-heading"><strong>Tu carta</strong><span id="deck-help">El equipo sólo verá que votaste.</span></div>
             <div class="deck" id="deck">
                 {% for card in deck_cards %}
-                    <button class="poker-card" type="button" onclick="castVote('{{ card }}', this)">{{ card }}</button>
+                    <button class="poker-card" type="button" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}>{{ card }}</button>
                 {% endfor %}
             </div>
         </section>
@@ -209,8 +209,14 @@ function setResults(results) {
 function updateControls(activeIssue) {
     const reveal = document.getElementById('reveal-button');
     const finish = document.getElementById('finish-issue-panel');
-    if (reveal) reveal.hidden = votingStatus === 'revealed' || !activeIssue;
+    if (reveal) reveal.hidden = votingStatus === 'revealed';
     if (finish) finish.hidden = votingStatus !== 'revealed' || !activeIssue;
+    document.querySelectorAll('.poker-card').forEach(card => {
+        card.disabled = votingStatus === 'revealed';
+    });
+    document.getElementById('deck-help').textContent = votingStatus === 'revealed'
+        ? 'Los votos están revelados. Espera la siguiente ronda.'
+        : 'El equipo sólo verá que votaste.';
 }
 
 function connect() {
@@ -249,10 +255,11 @@ function connect() {
             document.querySelectorAll('.poker-card').forEach(card => card.classList.remove('selected'));
             myCurrentVote = null;
             setResults(null);
-            updateControls(document.querySelector('#active-issue-display h1').textContent !== 'Esperando una historia');
+            updateControls(document.querySelector('#active-issue-display h1').textContent !== 'Estimación libre');
         } else if (data.type === 'issue.activated') {
             renderActiveIssue(data.issue);
             document.querySelectorAll('.room-issue').forEach(item => item.classList.toggle('is-active', Number(item.dataset.issueId) === data.issue.id));
+            updateControls(data.issue);
         } else if (data.type === 'issue.finished') {
             renderActiveIssue(null);
             updateControls(false);
@@ -263,7 +270,7 @@ function connect() {
 
 function send(type, payload = {}) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type, ...payload})); }
 function castVote(value, button) {
-    if (votingStatus === 'revealed') return;
+    if (button.disabled) return;
     const next = myCurrentVote === value ? null : value;
     myCurrentVote = next;
     document.querySelectorAll('.poker-card').forEach(card => card.classList.toggle('selected', card === button && next));

@@ -29,17 +29,17 @@ class TestVotingRoundService:
         self.guest = Participant.objects.create(room=self.room, display_name="Guest")
         self.issue = Issue.objects.create(room=self.room, title="Estimate this")
 
-    def test_votes_require_an_active_issue_and_deck_value(self):
-        with pytest.raises(RoomActionError, match="Select an issue"):
-            cast_vote(self.room.id, self.guest.id, "5")
-
-        activate_issue(self.room.id, self.issue.id, self.owner)
+    def test_votes_allow_a_free_round_and_reject_invalid_deck_values(self):
         cast_vote(self.room.id, self.guest.id, "5")
         self.guest.refresh_from_db()
         assert self.guest.current_vote == "5"
 
         with pytest.raises(RoomActionError, match="not available"):
             cast_vote(self.room.id, self.guest.id, "999")
+
+        reveal_round(self.room.id, self.owner)
+        self.room.refresh_from_db()
+        assert self.room.voting_status == "revealed"
 
     def test_reveal_locks_votes_and_returns_results(self):
         activate_issue(self.room.id, self.issue.id, self.owner)

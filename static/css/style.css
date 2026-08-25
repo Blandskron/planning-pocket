@@ -576,6 +576,8 @@ button.danger:hover:not(:disabled) {
 .room-deck-wrap .poker-card { width: 55px; height: 76px; border-radius: 11px; font-size: 1.3rem; }
 .room-deck-wrap .poker-card:hover { transform: translateY(-6px); }
 .room-deck-wrap .poker-card.selected { transform: translateY(-8px); color: var(--primary-text); }
+.room-deck-wrap .poker-card:disabled { opacity: .42; cursor: not-allowed; filter: grayscale(.35); }
+.room-deck-wrap .poker-card:disabled:hover { transform: none; box-shadow: var(--shadow-sm); border-color: var(--table-line); }
 
 @media (max-width: 900px) {
   .poker-room { margin-top: -1rem; }

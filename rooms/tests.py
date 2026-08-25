@@ -83,6 +83,10 @@ class RoomsTests(TestCase):
         self.assertContains(response, 'class="poker-room"')
         self.assertContains(response, 'class="poker-table-card"')
         self.assertContains(response, 'table-seat')
+        self.assertContains(response, 'Vota directamente o añade una historia')
+        self.assertContains(
+            response, 'class="poker-card" type="button" onclick="castVote(\'0\', this)"'
+        )
 
     def test_cannot_join_closed_room(self):
         self.room.close_room()

@@ -38,9 +38,6 @@ def cast_vote(room_id, participant_id, value):
 
     if room.voting_status != "voting":
         raise RoomActionError("Votes are locked until the facilitator resets the round.")
-    if not room.active_issue_id:
-        raise RoomActionError("Select an issue before voting.")
-
     participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
     if value is not None and value not in _deck_values(room):
         raise RoomActionError("That value is not available in this deck.")
@@ -98,9 +95,6 @@ def reveal_round(room_id, actor):
 
     if room.voting_status != "voting":
         raise RoomActionError("This round has already been revealed.")
-    if not room.active_issue_id:
-        raise RoomActionError("Select an issue before revealing votes.")
-
     room.voting_status = "revealed"
     room.save(update_fields=["voting_status"])
     return room, calculate_results(room)
