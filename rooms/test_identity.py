@@ -5,6 +5,7 @@ from rooms.consumers import PokerConsumer
 from rooms.forms import GuestJoinForm
 from rooms.identity import COLOR_COUNT, FACE_SLUGS, PET_SLUGS, derive_identity
 from rooms.models import Participant, PokerRoom
+from rooms.services import RoomActionError, set_identity
 
 User = get_user_model()
 
@@ -98,3 +99,55 @@ class TestGuestJoinForm:
     def test_values_outside_the_closed_lists_are_rejected(self, payload):
         form = GuestJoinForm(data={'display_name': 'Ana', **payload})
         assert not form.is_valid()
+
+
+@pytest.mark.django_db
+class TestChangingYourOwnIdentity:
+    @pytest.fixture(autouse=True)
+    def setup_data(self):
+        self.owner = User.objects.create_user(username='owner', password='pwd')
+        self.room = PokerRoom.objects.create(owner=self.owner, name='Table')
+        self.me = Participant.objects.create(
+            room=self.room, user=self.owner, display_name='Me', pet='gato', color_index=1
+        )
+        self.other = Participant.objects.create(room=self.room, display_name='Other')
+
+    def test_changing_pet_and_colour(self):
+        set_identity(self.room.id, self.me.id, 'dragon', 5)
+        self.me.refresh_from_db()
+        assert self.me.identity['pet'] == 'dragon'
+        assert self.me.identity['color'] == 5
+
+    def test_either_half_can_be_changed_alone(self):
+        set_identity(self.room.id, self.me.id, 'rana', None)
+        self.me.refresh_from_db()
+        assert (self.me.pet, self.me.color_index) == ('rana', 1)
+
+        set_identity(self.room.id, self.me.id, None, 0)
+        self.me.refresh_from_db()
+        assert (self.me.pet, self.me.color_index) == ('rana', 0)
+
+    @pytest.mark.parametrize('pet,color', [
+        ('tiranosaurio', None),
+        ('', None),
+        (None, 99),
+        (None, -1),
+        (None, COLOR_COUNT),
+    ])
+    def test_values_outside_the_closed_lists_are_refused(self, pet, color):
+        with pytest.raises(RoomActionError):
+            set_identity(self.room.id, self.me.id, pet, color)
+        self.me.refresh_from_db()
+        assert (self.me.pet, self.me.color_index) == ('gato', 1)
+
+    def test_changing_identity_never_touches_a_vote(self):
+        self.me.current_vote = '8'
+        self.me.save(update_fields=['current_vote'])
+        set_identity(self.room.id, self.me.id, 'perro', 3)
+        self.me.refresh_from_db()
+        assert self.me.current_vote == '8'
+
+    def test_a_closed_room_refuses_the_change(self):
+        self.room.close_room()
+        with pytest.raises(RoomActionError, match='cerrada'):
+            set_identity(self.room.id, self.me.id, 'perro', 3)

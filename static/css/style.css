@@ -351,7 +351,14 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 .room-button-primary:hover { background: var(--accent-hover); }
 .room-workspace { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 1rem; align-items: start; }
 .room-sidebar, .poker-table-card, .room-deck-wrap { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
-.room-sidebar { grid-row: 1 / span 2; min-height: 678px; padding: 1rem; display: flex; flex-direction: column; }
+/* No min-height: it used to stretch the whole layout even with no stories in it,
+   which gave the room the proportions of an admin panel. It is a disclosure now,
+   so on a narrow screen the felt keeps the space. */
+.room-sidebar { grid-row: 1 / span 2; padding: 1rem; display: flex; flex-direction: column; }
+.room-sidebar > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.room-sidebar > summary::-webkit-details-marker { display: none; }
+.room-sidebar > summary .sidebar-caret { color: var(--muted); font-size: 0.7rem; transition: transform 0.18s; }
+.room-sidebar[open] > summary .sidebar-caret { transform: rotate(90deg); }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 0.66rem; font-weight: 850; letter-spacing: 0.11em; text-transform: uppercase; }
 .issue-count { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--text-soft); background: var(--surface-hover); font-size: 0.66rem; }
 .issue-form { margin: 1rem 0 0.8rem; }
@@ -520,6 +527,26 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .result-bar span { color: var(--text-soft); font-family: var(--font-mono); font-size: 0.68rem; }
 .result-bar small { color: var(--muted); font-size: 0.58rem; font-weight: 750; }
 
+/* Changing your own character from inside the room. Guests choose on the way in;
+   authenticated participants never see that screen, so this is the path that
+   works for everyone. */
+.character-panel { position: relative; }
+.character-panel > summary { list-style: none; }
+.character-panel > summary::-webkit-details-marker { display: none; }
+.character-sheet { position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 120; width: min(19rem, calc(100vw - 2rem)); padding: 0.9rem 1rem; display: grid; gap: 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-md); }
+.character-sheet .pick-grid legend { font-size: 0.72rem; }
+.character-sheet .pick-pet label { width: 54px; font-size: 0.55rem; }
+.character-sheet .pick-pet svg { width: 28px; height: 28px; }
+.character-sheet .pick-color label { width: 28px; height: 28px; }
+
+/* One person at the table is a normal state, not a broken one. */
+.table-empty { position: absolute; inset: 50px 11% 34px; z-index: var(--z-marks); display: none; place-content: center; justify-items: center; gap: 0.4rem; padding: 0 1rem; text-align: center; pointer-events: none; }
+.is-alone .table-empty { display: grid; }
+.is-alone .table-marks { display: none; }
+.table-empty strong { color: rgba(247, 241, 225, 0.86); font-size: 0.92rem; }
+.table-empty span { max-width: 22rem; color: var(--felt-text); font-size: 0.74rem; }
+.table-empty .seat-pet { --pet-w: 42px; width: 42px; height: 42px; color: color-mix(in srgb, var(--warning) 70%, var(--card-face)); }
+
 /* The recess: people leave their seats while the table waits for the last vote.
    The seats stay visible underneath, dimmed, so nobody loses track of who has
    voted; the recess is a layer over the meeting, never a replacement for it. */
@@ -540,7 +567,7 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .recess-spot.is-near .spot-glyph { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 26%, transparent); }
 .recess-spot.is-near b { color: #f6d9a4; }
 
-.recess-walker { position: absolute; width: 40px; margin: -20px 0 0 -20px; display: grid; justify-items: center; gap: 2px; }
+.recess-walker { position: absolute; left: 0; top: 0; width: 40px; margin: -20px 0 0 -20px; display: grid; justify-items: center; gap: 2px; will-change: transform; }
 .walker-body { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid rgba(4, 16, 13, 0.45); border-radius: 50%; background: var(--seat-hue, var(--seat-hue-0)); box-shadow: 0 5px 11px rgba(0, 0, 0, 0.36); }
 .walker-body svg { width: 22px; height: auto; }
 .recess-walker.is-walking .walker-body { animation: walker-step 0.34s ease-in-out infinite; }
@@ -665,6 +692,7 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
   .deck-heading > span { max-width: 190px; font-size: 0.63rem; }
   .deck { justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; padding: 1.1rem 0.2rem 0.85rem; scrollbar-width: thin; }
   .poker-card { --card-fan: 2.2deg; flex-basis: 52px; width: 52px; height: 74px; }
+  .character-sheet { right: auto; left: 0; }
   .room-issue-list { display: flex; overflow-x: auto; padding-bottom: 0.4rem; }
   .room-issue { flex: 0 0 min(82vw, 260px); }
   .decision-actions { flex-direction: column-reverse; }

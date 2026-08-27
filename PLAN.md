@@ -1,19 +1,4 @@
 # Trabajo Pendiente
 
-## Fase 5 — Sonido y remate
-
-- Cinco tonos sintetizados con WebAudio (apoyar carta, giro, lanzamiento, impacto, acorde de
-  consenso). Sin descargas, apagado por defecto, un único interruptor recordado en el navegador.
-- Estado vacío digno: con una sola persona, la mesa muestra su mascota y un crupier en reposo.
-- Presupuesto de rendimiento: sólo `transform` y `opacity`, `will-change` con cuentagotas.
-- Reemplazar `prototype/index.html` por un prototipo que refleje la mesa y la capa de juego
-  actuales.
-
-## Deuda de acabado detectada en la auditoría
-
-- La barra lateral de historias fuerza el alto del layout con `min-height: 678px` y pesa más que la
-  mesa. Hacerla plegable y devolver el protagonismo al paño.
-- Los participantes autenticados no pueden elegir mascota ni color: reciben una identidad derivada.
-  Sólo los invitados pasan por el selector, porque son los únicos con una pantalla de ingreso.
-- Los mensajes de `RoomActionError` están en inglés y se muestran tal cual en un toast, dentro de
-  una interfaz en español. Traducirlos y ajustar los `match` de los tests.
+Sin trabajo pendiente registrado. La dirección visual de la capa de juego está completa:
+escenario, identidad, interacción entre pares, recreo y acabado.

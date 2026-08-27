@@ -18,6 +18,7 @@ from .services import (
     remind_participant,
     reset_round,
     reveal_round,
+    set_identity,
     set_playful_actions,
     set_recess,
     throw_item,
@@ -102,6 +103,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "room.set_playful",
             "player.move",
             "room.set_recess",
+            "participant.set_identity",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
             return
@@ -126,6 +128,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.handle_move(data)
         elif event_type == "room.set_recess":
             await self.handle_set_recess(data)
+        elif event_type == "participant.set_identity":
+            await self.handle_set_identity(data)
 
     async def handle_vote(self, data):
         value = data.get("value")
@@ -321,6 +325,29 @@ class PokerConsumer(AsyncWebsocketConsumer):
             {"type": "room.recess_changed", "recess_open": is_open},
         )
 
+    async def handle_set_identity(self, data):
+        pet = data.get("pet")
+        color_index = data.get("color_index")
+        if pet is not None and not isinstance(pet, str):
+            await self.send_error("invalid_payload", "A pet must be a catalogue slug.")
+            return
+        if color_index is not None and (
+            isinstance(color_index, bool) or not isinstance(color_index, int)
+        ):
+            await self.send_error("invalid_payload", "A colour must be an index.")
+            return
+
+        try:
+            participant = await self.save_identity(pet, color_index)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "participant.updated", "participant": participant},
+        )
+
     async def send_error(self, code, message):
         await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
 
@@ -413,6 +440,12 @@ class PokerConsumer(AsyncWebsocketConsumer):
         room = PokerRoom.objects.get(public_id=self.public_id)
         room = set_playful_actions(room.id, enabled, self.scope.get("user"))
         return room.allow_playful_actions
+
+    @database_sync_to_async
+    def save_identity(self, pet, color_index):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        participant = set_identity(room.id, self.participant.id, pet, color_index)
+        return self._participant_state(participant, room)
 
     @database_sync_to_async
     def update_recess(self, enabled):
@@ -534,6 +567,13 @@ class PokerConsumer(AsyncWebsocketConsumer):
                     "type": "room.playful_changed",
                     "allow_playful_actions": event["allow_playful_actions"],
                 }
+            )
+        )
+
+    async def participant_updated(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "participant.updated", "participant": event["participant"]}
             )
         )
 

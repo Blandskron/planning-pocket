@@ -55,5 +55,7 @@ La comunicación WebSocket transmitirá principalmente actualizaciones de estado
   `{"participant_id": 1, "x": 0.25, "y": 0.75}`. **Efímero**: se reenvía y no se persiste.
   El servidor descarta en silencio lo que llegue más rápido que un movimiento cada 110 ms,
   lo rechaza si el recreo está cerrado, y nunca lo encola.
+- `participant.updated`: Alguien cambió su mascota o su color. Lleva el estado completo del
+  participante, con la misma regla de privacidad que el resto.
 - `room.recess_changed`: Se abrió o cerró el recreo. Al revelar se emite antes del
   `room.revealed`, y sólo si había un recreo abierto.

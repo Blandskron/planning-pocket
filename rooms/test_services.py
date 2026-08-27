@@ -34,7 +34,7 @@ class TestVotingRoundService:
         self.guest.refresh_from_db()
         assert self.guest.current_vote == "5"
 
-        with pytest.raises(RoomActionError, match="not available"):
+        with pytest.raises(RoomActionError, match="no está en la baraja"):
             cast_vote(self.room.id, self.guest.id, "999")
 
         reveal_round(self.room.id, self.owner)
@@ -55,7 +55,7 @@ class TestVotingRoundService:
             "has_consensus": False,
         }
 
-        with pytest.raises(RoomActionError, match="locked"):
+        with pytest.raises(RoomActionError, match="están cerrados"):
             cast_vote(self.room.id, self.guest.id, "8")
 
     def test_average_is_rounded_for_display(self):
@@ -72,10 +72,10 @@ class TestVotingRoundService:
     def test_only_facilitator_can_control_the_round(self):
         activate_issue(self.room.id, self.issue.id, self.owner)
 
-        with pytest.raises(RoomActionError, match="Only the facilitator"):
+        with pytest.raises(RoomActionError, match="Sólo el facilitador"):
             reveal_round(self.room.id, self.other_user)
 
-        with pytest.raises(RoomActionError, match="Only the facilitator"):
+        with pytest.raises(RoomActionError, match="Sólo el facilitador"):
             reset_round(self.room.id, self.other_user)
 
     def test_switching_issues_resets_votes_and_previous_issue(self):
@@ -96,11 +96,11 @@ class TestVotingRoundService:
 
     def test_finish_requires_reveal_and_a_deck_value(self):
         activate_issue(self.room.id, self.issue.id, self.owner)
-        with pytest.raises(RoomActionError, match="Reveal the votes"):
+        with pytest.raises(RoomActionError, match="Revela los votos"):
             finish_active_issue(self.room.id, "5", self.owner)
 
         reveal_round(self.room.id, self.owner)
-        with pytest.raises(RoomActionError, match="must be in this deck"):
+        with pytest.raises(RoomActionError, match="carta de la baraja"):
             finish_active_issue(self.room.id, "999", self.owner)
 
         finish_active_issue(self.room.id, "5", self.owner)
@@ -131,10 +131,10 @@ class TestVotingRoundService:
         self.guest.refresh_from_db()
         assert self.guest.last_reminded_at is not None
 
-        with pytest.raises(RoomActionError, match="Wait 20 seconds"):
+        with pytest.raises(RoomActionError, match="Espera 20 segundos"):
             remind_participant(self.room.id, self.guest.id, self.owner)
 
         self.guest.current_vote = "5"
         self.guest.save(update_fields=["current_vote"])
-        with pytest.raises(RoomActionError, match="already voted"):
+        with pytest.raises(RoomActionError, match="ya votó"):
             remind_participant(self.room.id, self.guest.id, self.owner)

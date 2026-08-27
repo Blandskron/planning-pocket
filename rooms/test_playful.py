@@ -56,12 +56,12 @@ class TestThrowItem:
 
     def test_objects_outside_the_catalogue_are_refused(self):
         for item in ('ladrillo', 'cuchillo', '', 'TOMATE', 'tomate ', '<script>'):
-            with pytest.raises(RoomActionError, match='not available'):
+            with pytest.raises(RoomActionError, match='no está en el catálogo'):
                 throw_item(self.room.id, self.alice.id, self.bob.id, item)
 
     def test_cooldown_is_enforced_by_the_server(self):
         throw_item(self.room.id, self.alice.id, self.bob.id, 'papel')
-        with pytest.raises(RoomActionError, match='couple of seconds'):
+        with pytest.raises(RoomActionError, match='un par de segundos'):
             throw_item(self.room.id, self.alice.id, self.bob.id, 'papel')
 
     def test_cooldown_expires(self):
@@ -76,7 +76,7 @@ class TestThrowItem:
         Participant.objects.filter(pk=self.alice.id).update(
             throws_this_round=MAX_THROWS_PER_ROUND
         )
-        with pytest.raises(RoomActionError, match='enough throwing'):
+        with pytest.raises(RoomActionError, match='suficiente en esta ronda'):
             throw_item(self.room.id, self.alice.id, self.bob.id, 'cafe')
 
     def test_the_round_budget_dies_with_the_round(self):
@@ -96,12 +96,12 @@ class TestThrowItem:
         assert self.alice.throws_this_round == 0
 
     def test_nobody_can_throw_at_themselves(self):
-        with pytest.raises(RoomActionError, match='someone else'):
+        with pytest.raises(RoomActionError, match='otra persona'):
             throw_item(self.room.id, self.alice.id, self.alice.id, 'tomate')
 
     def test_absent_people_cannot_be_targeted(self):
         Participant.objects.filter(pk=self.bob.id).update(connection_count=0)
-        with pytest.raises(RoomActionError, match='not at the table'):
+        with pytest.raises(RoomActionError, match='no está en la mesa'):
             throw_item(self.room.id, self.alice.id, self.bob.id, 'tomate')
 
     def test_people_outside_the_room_are_not_reachable(self):
@@ -129,7 +129,7 @@ class TestThrowItem:
 
     def test_a_closed_room_refuses_throws(self):
         self.room.close_room()
-        with pytest.raises(RoomActionError, match='closed'):
+        with pytest.raises(RoomActionError, match='cerrada'):
             throw_item(self.room.id, self.alice.id, self.bob.id, 'tomate')
 
 
@@ -152,7 +152,7 @@ class TestPlayfulSwitch:
 
     def test_the_facilitator_can_turn_it_off_and_throws_stop(self):
         set_playful_actions(self.room.id, False, self.owner)
-        with pytest.raises(RoomActionError, match='turned off'):
+        with pytest.raises(RoomActionError, match='desactivó el juego'):
             throw_item(self.room.id, self.alice.id, self.bob.id, 'tomate')
 
         set_playful_actions(self.room.id, True, self.owner)
@@ -160,7 +160,7 @@ class TestPlayfulSwitch:
         assert thrower.id == self.alice.id
 
     def test_only_the_facilitator_can_flip_the_switch(self):
-        with pytest.raises(RoomActionError, match='Only the facilitator'):
+        with pytest.raises(RoomActionError, match='Sólo el facilitador'):
             set_playful_actions(self.room.id, False, self.stranger)
 
     def test_turning_it_off_does_not_touch_voting(self):
@@ -193,13 +193,13 @@ class TestRecess:
         assert set_recess(self.room.id, False, self.owner).recess_open is False
 
     def test_only_the_facilitator_decides(self):
-        with pytest.raises(RoomActionError, match='Only the facilitator'):
+        with pytest.raises(RoomActionError, match='Sólo el facilitador'):
             set_recess(self.room.id, True, self.stranger)
 
     def test_it_cannot_be_opened_once_the_votes_are_out(self):
         cast_vote(self.room.id, self.bob.id, '5')
         reveal_round(self.room.id, self.owner)
-        with pytest.raises(RoomActionError, match='while voting is open'):
+        with pytest.raises(RoomActionError, match='con la votación abierta'):
             set_recess(self.room.id, True, self.owner)
 
     def test_revealing_closes_it_by_itself(self):
@@ -224,5 +224,5 @@ class TestRecess:
 
     def test_a_closed_room_refuses_the_recess(self):
         self.room.close_room()
-        with pytest.raises(RoomActionError, match='closed'):
+        with pytest.raises(RoomActionError, match='cerrada'):
             set_recess(self.room.id, True, self.owner)

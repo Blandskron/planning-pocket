@@ -7,7 +7,18 @@ Planning Pocket is a fast, modern, and privacy-first web application for Agile t
 - **Real-time WebSockets:** Powered by Django Channels. Live updates for participants joining, voting status, issue changing, and result revealing.
 - **Vote Privacy Guarantee:** A strict backend rule ensures that vote payloads are never transmitted to clients until the facilitator explicitly triggers a reveal.
 - **Issue Tracking:** Built-in queue for issues to be estimated, allowing the facilitator to focus the discussion, save the final estimate, and instantly switch to the next topic.
-- **Modern UI:** Responsive, clean, and professional design built entirely with native CSS. No React, no Vue—just plain HTML and CSS variables.
+- **A Table, Not a Form:** Seats are placed on an elliptical ring computed from the number of
+  participants, the felt itself reports the round, the deck is a fanned hand, and the reveal has a
+  countdown and a staggered flip. Everyone sees their own seat at the front.
+- **Characters:** Each person gets a face, a pet and a colour, chosen on the way in or from the room
+  and derived from a stable hash otherwise. The pet mirrors its owner's state with body language.
+- **A Playful Layer:** Anyone can toss a soft object at anyone else, and the facilitator can open a
+  recess where people leave their seats and walk around while the table waits for the last vote.
+  Both are cosmetic, rate-limited by the server, and switchable off for the room or for one screen.
+  See `docs/DECISIONS.md` ADR-005 for the rules that keep it from becoming pressure.
+- **Modern UI:** Responsive, clean, and professional design built entirely with native CSS. No React,
+  no Vue—just plain HTML and CSS variables. Every animation touches only `transform` and `opacity`,
+  and sound is five tones synthesised in the browser, off by default.
 
 ## Tech Stack
 - **Backend:** Python 3.13, Django 4.2+

@@ -49,7 +49,10 @@ siempre están sobre el paño).
 
 - Las opciones válidas viven en tuplas cerradas en `rooms/identity.py`; el formulario de ingreso
   valida contra ellas y nada más entra.
-- Mascota y color se eligen en la pantalla de ingreso. La cara se deriva.
+- Mascota y color se eligen en la pantalla de ingreso y se pueden cambiar en cualquier momento
+  desde el panel «Personaje» de la barra superior, que es la única vía para los participantes
+  autenticados: nunca ven la pantalla de ingreso. Sólo se puede cambiar el propio asiento. La cara
+  se deriva.
 - Lo que no se elige se **deriva** de un hash estable del `guest_token` (`derive_identity`), así que
   los participantes creados antes de que estos campos existieran tienen un asiento reconocible sin
   migración de datos, y el mismo entre reconexiones.
@@ -169,6 +172,30 @@ Las posiciones son **efímeras**: coordenadas normalizadas de 0 a 1 que el servi
 guardar nada. Un cliente que se retrasa pierde la posición intermedia en lugar de acumular cola, y
 el servidor descarta en silencio lo que llegue más rápido que un movimiento cada 110 ms.
 
+## Sonido
+
+Cinco tonos sintetizados con WebAudio en el momento: apoyar carta, giro, lanzamiento, impacto y un
+acorde de consenso. No se descarga ningún archivo, así que no cuesta ni una petición ni un byte.
+
+- **Apagado por defecto**, con un único interruptor que se recuerda en el navegador.
+- El `AudioContext` se crea sólo después de un clic real, porque los navegadores rechazan crearlo
+  antes.
+- Si el navegador no da audio, la sala sigue en silencio sin romperse.
+- El giro suena una vez por carta durante el reveal escalonado, así que la mesa se oye como una
+  baraja pasando.
+
+## Estado de una sola persona
+
+Una persona en la mesa es un estado normal, no uno roto. El paño muestra su mascota y una invitación
+a compartir el enlace, en lugar de un óvalo desierto con un contador de uno.
+
+## Presupuesto de rendimiento
+
+Las catorce animaciones de la hoja de estilos tocan únicamente `transform` y `opacity`. Nada anima
+propiedades que disparen layout, y eso incluye los caminantes del recreo: se mueven con `transform`
+y no con `left`/`top`, leyendo el rectángulo de la capa una vez por pasada y no una vez por
+caminante. `will-change` se usa en un solo sitio, justamente ahí.
+
 ## Responsive y accesibilidad
 
 - Escritorio y tableta: los participantes se distribuyen sobre el anillo elíptico.
@@ -182,5 +209,6 @@ el servidor descarta en silencio lo que llegue más rápido que un movimiento ca
 
 ## Prototipo
 
-`prototype/index.html` es una exploración estática anterior con datos ficticios. No refleja la
-composición actual de la mesa ni contiene lógica de negocio.
+No hay ninguno. Había una exploración estática en `prototype/index.html` que dejó de reflejar la
+mesa, y un prototipo obsoleto engaña más de lo que ayuda. La sala real es ahora la referencia, y su
+geometría y sus estados se verifican midiendo el DOM. El archivo sigue en el historial de git.

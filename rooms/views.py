@@ -6,6 +6,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import GuestJoinForm, IssueForm, PokerRoomForm
+from .identity import COLOR_CHOICES, PETS
 from .models import Participant, PokerRoom
 from .playful import THROWABLES
 
@@ -102,6 +103,8 @@ def room_detail(request, public_id):
         'issues': issues,
         'issue_form': issue_form,
         'throwables': THROWABLES,
+        'pets': PETS,
+        'colors': COLOR_CHOICES,
     })
 
 
