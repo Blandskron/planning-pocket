@@ -4,6 +4,7 @@
 {% block shell_class %}room-shell{% endblock %}
 
 {% block content %}
+{% include 'rooms/_table_sprite.html' %}
 <section class="poker-room" data-owner="{{ is_owner|yesno:'true,false' }}">
     <header class="room-topbar">
         <div class="room-brand">
@@ -65,15 +66,25 @@
                 {% endif %}
             </div>
 
-            <div class="table-stage">
-                <div class="table-oval" aria-hidden="true"><span class="table-monogram">PP</span><span class="table-caption">Planning Pocket</span></div>
+            <div class="table-stage" id="table-stage">
+                <div class="table-oval" aria-hidden="true"></div>
+                <div class="table-glow" id="table-glow" aria-hidden="true"></div>
+                <div class="table-marks">
+                    <span class="table-count" id="table-count" aria-hidden="true"></span>
+                    <span class="table-pile" id="table-pile" aria-hidden="true"></span>
+                    <span class="table-tally" id="table-tally" aria-live="polite"></span>
+                </div>
                 <div class="table-seats" id="participants-list" aria-live="polite">
-                    {% for p in participants %}
-                        <article class="table-seat {% if p.id == participant.id %}is-me{% endif %} {% if p.current_vote %}has-voted{% else %}is-thinking{% endif %} {% if room.voting_status == 'revealed' %}is-revealed{% endif %}" id="participant-{{ p.id }}" data-participant-id="{{ p.id }}">
-                            <div class="participant-card">
-                                <div class="participant-card-inner">
-                                    <div class="participant-face participant-back"></div>
-                                    <div class="participant-face participant-front {% if not p.current_vote %}no-vote{% endif %}" id="vote-status-{{ p.id }}">{% if p.current_vote and room.voting_status == 'revealed' %}{{ p.current_vote }}{% else %}—{% endif %}</div>
+                    {% for p in participants %}{% with ident=p.identity %}
+                        <article class="table-seat {% if p.id == participant.id %}is-me{% endif %} {% if p.current_vote %}has-voted{% else %}is-thinking{% endif %} {% if room.voting_status == 'revealed' %}is-revealed{% endif %}" id="participant-{{ p.id }}" data-participant-id="{{ p.id }}" style="--seat-hue: var(--seat-hue-{{ ident.color }});">
+                            <div class="seat-figure">
+                                <span class="seat-pet" aria-hidden="true"><svg viewBox="0 0 40 40"><use href="#pet-{{ ident.pet }}"></use></svg><span class="seat-zzz">z</span></span>
+                                <span class="seat-avatar" aria-hidden="true"><svg viewBox="0 0 30 22"><use href="#face-{{ ident.avatar }}"></use></svg></span>
+                                <div class="participant-card">
+                                    <div class="participant-card-inner">
+                                        <div class="participant-face participant-back"></div>
+                                        <div class="participant-face participant-front {% if not p.current_vote %}no-vote{% endif %}" id="vote-status-{{ p.id }}">{% if p.current_vote and room.voting_status == 'revealed' %}{{ p.current_vote }}{% else %}—{% endif %}</div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="seat-name">{{ p.display_name }}{% if p.id == participant.id %}<span>Tú</span>{% endif %}</div>
@@ -82,8 +93,18 @@
                                 <button class="seat-reminder" type="button" hidden onclick="remindParticipant({{ p.id }})">Recordar</button>
                             {% endif %}
                         </article>
-                    {% endfor %}
+                    {% endwith %}{% endfor %}
                 </div>
+            </div>
+
+            <div class="round-result" id="round-result" hidden>
+                <div class="result-figures">
+                    <span class="result-figure"><strong id="result-average">—</strong><span>Promedio</span></span>
+                    <span class="result-figure"><strong id="result-range">—</strong><span>Rango</span></span>
+                    <span class="result-figure"><strong id="result-count">—</strong><span>Votos</span></span>
+                    <p class="result-verdict" id="result-verdict"></p>
+                </div>
+                <ul class="result-bars" id="result-bars"></ul>
             </div>
 
             <div class="room-controls">
@@ -96,7 +117,6 @@
                         <button class="room-button room-button-primary" type="button" onclick="finishIssue()">Guardar</button>
                     </div>
                 {% endif %}
-                <span class="round-summary" id="round-summary" hidden></span>
             </div>
         </section>
 
@@ -104,7 +124,7 @@
             <div class="deck-heading"><div><span class="deck-eyebrow">Tu baraja</span><strong>Elige una carta</strong></div><span id="deck-help">Tu elección permanece privada hasta el reveal.</span></div>
             <div class="deck" id="deck">
                 {% for card in deck_cards %}
-                    <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" aria-label="Votar {{ card }}" aria-pressed="false" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
+                    <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" style="--card-index: {{ forloop.counter0 }}; --card-total: {{ deck_cards|length }};" aria-label="Votar {{ card }}" aria-pressed="false" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
                 {% endfor %}
             </div>
         </section>
@@ -118,8 +138,11 @@ const myParticipantId = {{ participant.id }};
 const isFacilitator = {{ is_owner|yesno:"true,false" }};
 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 const wsUrl = protocol + window.location.host + '/ws/room/' + publicId + '/';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STAGGER = 70;
 let ws;
 let myCurrentVote = null;
+let currentIssue = null;
 let votingStatus = "{{ room.voting_status }}";
 
 function showToast(message, isError = false) {
@@ -130,11 +153,137 @@ function showToast(message, isError = false) {
     window.setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+function seatList() {
+    return Array.from(document.querySelectorAll('.table-seat'));
+}
+
+/* Seats are spaced evenly along the ellipse by arc length, not by angle: equal
+   angles bunch up near the ends of the minor axis and start overlapping around ten
+   people. The walk starts at the bottom of the ring so slot 0 sits front-centre. */
+function ringAngles(total, rx, ry) {
+    const SAMPLES = 720;
+    const walk = [];
+    let travelled = 0;
+    let previous = null;
+    for (let step = 0; step <= SAMPLES; step += 1) {
+        const t = Math.PI / 2 + (step / SAMPLES) * Math.PI * 2;
+        const point = [rx * Math.cos(t), ry * Math.sin(t)];
+        if (previous) travelled += Math.hypot(point[0] - previous[0], point[1] - previous[1]);
+        walk.push({ length: travelled, angle: t });
+        previous = point;
+    }
+    const spacing = travelled / total;
+    const angles = [];
+    let cursor = 0;
+    for (let slot = 0; slot < total; slot += 1) {
+        const target = slot * spacing;
+        while (cursor < walk.length - 1 && walk[cursor].length < target) cursor += 1;
+        angles.push(walk[cursor].angle);
+    }
+    return angles;
+}
+
+/* A crowded table needs a smaller footprint per person and a taller stage, or the
+   seats collide no matter how evenly they are spaced. */
+function ringMetrics(total) {
+    if (total >= 15) return { stage: 500, seat: '84px', card: ['32px', '46px'], av: '24px', pet: '18px' };
+    if (total >= 12) return { stage: 470, seat: '98px', card: ['38px', '54px'], av: '28px', pet: '22px' };
+    if (total >= 9) return { stage: 430, seat: '116px', card: ['44px', '62px'], av: '34px', pet: '26px' };
+    return { stage: 390, seat: '140px', card: ['52px', '72px'], av: '40px', pet: '30px' };
+}
+
+/* The ring order is the server's (by joined_at), so neighbours are the same for
+   everyone; it is only rotated locally so each person sees their own seat at the
+   bottom. */
+function layoutSeats() {
+    const seats = seatList();
+    const total = seats.length;
+    if (!total) return;
+    const stage = document.getElementById('table-stage');
+    const metrics = ringMetrics(total);
+    stage.style.setProperty('--stage-h', metrics.stage + 'px');
+    stage.style.setProperty('--seat-w', metrics.seat);
+    stage.style.setProperty('--card-w', metrics.card[0]);
+    stage.style.setProperty('--card-h', metrics.card[1]);
+    stage.style.setProperty('--av-w', metrics.av);
+    stage.style.setProperty('--pet-w', metrics.pet);
+
+    /* Radii come from the room the seats actually leave, not from a fixed
+       percentage: that is what keeps the outermost seat inside the stage. */
+    const box = stage.getBoundingClientRect();
+    let widest = 0;
+    let tallest = 0;
+    seats.forEach(seat => {
+        const rect = seat.getBoundingClientRect();
+        if (rect.width > widest) widest = rect.width;
+        if (rect.height > tallest) tallest = rect.height;
+    });
+    const rx = Math.max(40, (box.width - widest) / 2 - 4);
+    const ry = Math.max(30, (box.height - tallest) / 2 - 4);
+    stage.style.setProperty('--ring-rx', rx.toFixed(1) + 'px');
+    stage.style.setProperty('--ring-ry', ry.toFixed(1) + 'px');
+    const angles = ringAngles(total, rx, ry);
+
+    const mine = seats.findIndex(seat => Number(seat.dataset.participantId) === myParticipantId);
+    const offset = mine < 0 ? 0 : mine;
+    seats.forEach((seat, index) => {
+        const slot = (index - offset + total) % total;
+        seat.style.setProperty('--seat-angle', (angles[slot] * 180 / Math.PI).toFixed(2) + 'deg');
+        seat.style.setProperty('--seat-index', String(slot));
+    });
+}
+
+let relayoutTimer = null;
+window.addEventListener('resize', () => {
+    window.clearTimeout(relayoutTimer);
+    relayoutTimer = window.setTimeout(layoutSeats, 120);
+});
+
+/* The felt centre reports the round instead of showing a static monogram. */
+function syncTableMarks() {
+    const seats = seatList();
+    const total = seats.length;
+    const placed = seats.filter(seat => seat.classList.contains('has-voted')).length;
+    /* One card on the felt per vote placed. Driven by existence rather than by
+       fading a fixed row in and out, so the pile cannot disagree with the tally. */
+    const pile = document.getElementById('table-pile');
+    while (pile.children.length > placed) pile.lastElementChild.remove();
+    while (pile.children.length < placed) {
+        const card = document.createElement('span');
+        card.style.setProperty('--pile-tilt', (((pile.children.length * 37) % 19) - 9) + 'deg');
+        pile.append(card);
+    }
+    const tally = document.getElementById('table-tally');
+    tally.textContent = total === 0 ? '' : placed + ' de ' + total + (placed === 1 ? ' ha votado' : ' han votado');
+}
+
+/* Identity arrives with every seat payload, so a seat built over the WebSocket
+   looks exactly like one rendered by Django. Partial payloads (a vote, for
+   instance) carry no identity and must leave the current one alone. */
+function applyIdentity(seat, participant) {
+    if (!participant || participant.pet === undefined) return;
+    if (participant.color !== undefined && participant.color !== null) {
+        seat.style.setProperty('--seat-hue', 'var(--seat-hue-' + participant.color + ')');
+    }
+    const pet = seat.querySelector('.seat-pet use');
+    if (pet && participant.pet) pet.setAttribute('href', '#pet-' + participant.pet);
+    const face = seat.querySelector('.seat-avatar use');
+    if (face && participant.avatar) face.setAttribute('href', '#face-' + participant.avatar);
+}
+
 function createParticipantCard(participant) {
     const seat = document.createElement('article');
     seat.className = 'table-seat is-thinking';
     seat.id = 'participant-' + participant.id;
     seat.dataset.participantId = participant.id;
+    const figure = document.createElement('div');
+    figure.className = 'seat-figure';
+    figure.innerHTML =
+        '<span class="seat-pet" aria-hidden="true">' +
+            '<svg viewBox="0 0 40 40"><use href="#pet-gato"></use></svg>' +
+            '<span class="seat-zzz">z</span></span>' +
+        '<span class="seat-avatar" aria-hidden="true">' +
+            '<svg viewBox="0 0 30 22"><use href="#face-sereno"></use></svg></span>';
     const card = document.createElement('div');
     card.className = 'participant-card';
     const inner = document.createElement('div');
@@ -147,6 +296,7 @@ function createParticipantCard(participant) {
     front.textContent = '—';
     inner.append(back, front);
     card.append(inner);
+    figure.append(card);
     const name = document.createElement('div');
     name.className = 'seat-name';
     name.textContent = participant.display_name;
@@ -154,12 +304,14 @@ function createParticipantCard(participant) {
         const me = document.createElement('span');
         me.textContent = 'Tú';
         name.append(me);
+        seat.classList.add('is-me');
     }
     const state = document.createElement('div');
     state.className = 'seat-state';
     state.id = 'state-status-' + participant.id;
     state.textContent = 'Pensando';
-    seat.append(card, name, state);
+    seat.append(figure, name, state);
+    applyIdentity(seat, participant);
     if (isFacilitator && participant.id !== myParticipantId) {
         const reminder = document.createElement('button');
         reminder.className = 'seat-reminder';
@@ -177,9 +329,12 @@ function renderParticipant(participant) {
     if (!seat) {
         seat = createParticipantCard(participant);
         document.getElementById('participants-list').append(seat);
+        layoutSeats();
     }
+    applyIdentity(seat, participant);
     const isMe = participant.id === myParticipantId;
     const revealed = votingStatus === 'revealed';
+    const wasVoted = seat.classList.contains('has-voted');
     seat.classList.toggle('has-voted', participant.has_voted);
     seat.classList.toggle('is-thinking', !participant.has_voted && participant.is_online);
     seat.classList.toggle('is-offline', !participant.is_online);
@@ -191,14 +346,22 @@ function renderParticipant(participant) {
     state.textContent = !participant.is_online ? 'Ausente' : participant.has_voted ? (isMe ? 'Tu voto' : 'Votó') : 'Pensando';
     const reminder = seat.querySelector('.seat-reminder');
     if (reminder) reminder.hidden = !(!revealed && participant.is_online && !participant.has_voted);
+    if (!revealed && !wasVoted && participant.has_voted && !reduceMotion) {
+        seat.classList.remove('just-voted');
+        void seat.offsetWidth;
+        seat.classList.add('just-voted');
+        window.setTimeout(() => seat.classList.remove('just-voted'), 480);
+    }
+    syncTableMarks();
 }
 
 function renderActiveIssue(issue) {
     const display = document.getElementById('active-issue-display');
     display.replaceChildren();
     const status = document.createElement('div');
-    status.className = 'round-status';
+    status.className = 'round-status' + (votingStatus === 'revealed' ? ' is-revealed' : '');
     const dot = document.createElement('span');
+    dot.setAttribute('aria-hidden', 'true');
     const label = document.createElement('span');
     label.id = 'round-label';
     label.textContent = votingStatus === 'revealed' ? 'Votos revelados' : issue ? 'Votación abierta' : 'Estimación libre';
@@ -210,12 +373,55 @@ function renderActiveIssue(issue) {
     display.append(status, title, description);
 }
 
-function setResults(results) {
-    const summary = document.getElementById('round-summary');
-    if (!results) { summary.hidden = true; return; }
-    summary.hidden = false;
-    const average = results.average === null ? '—' : results.average;
-    summary.textContent = 'Promedio ' + average + ' · ' + (results.has_consensus ? 'Consenso' : 'Sin consenso');
+/* The round result is the emotional peak: a figure, a range, a verdict and the
+   distribution, so a split table can see *where* it split. */
+function setResults(results, participants) {
+    const panel = document.getElementById('round-result');
+    if (!results) {
+        panel.hidden = true;
+        document.getElementById('result-bars').replaceChildren();
+        return;
+    }
+    const votes = (participants || []).filter(p => p.has_voted && p.current_vote).map(p => String(p.current_vote));
+    const numbers = votes.map(Number).filter(value => !Number.isNaN(value));
+    document.getElementById('result-average').textContent = results.average === null ? '—' : results.average;
+    document.getElementById('result-range').textContent = numbers.length > 1
+        ? Math.min.apply(null, numbers) + '–' + Math.max.apply(null, numbers)
+        : '—';
+    document.getElementById('result-count').textContent = results.vote_count;
+    const verdict = document.getElementById('result-verdict');
+    verdict.textContent = results.has_consensus ? 'Consenso' : 'Sin consenso';
+    verdict.className = 'result-verdict ' + (results.has_consensus ? 'is-consensus' : 'is-split');
+
+    const counts = new Map();
+    votes.forEach(vote => counts.set(vote, (counts.get(vote) || 0) + 1));
+    const keys = Array.from(counts.keys()).sort((a, b) => {
+        const na = Number(a), nb = Number(b);
+        if (Number.isNaN(na) && Number.isNaN(nb)) return a.localeCompare(b);
+        if (Number.isNaN(na)) return 1;
+        if (Number.isNaN(nb)) return -1;
+        return na - nb;
+    });
+    const peak = Math.max.apply(null, [1].concat(Array.from(counts.values())));
+    const low = numbers.length ? String(Math.min.apply(null, numbers)) : null;
+    const high = numbers.length ? String(Math.max.apply(null, numbers)) : null;
+    const bars = document.getElementById('result-bars');
+    bars.replaceChildren();
+    keys.forEach((key, index) => {
+        const item = document.createElement('li');
+        const isEdge = !results.has_consensus && numbers.length > 1 && (key === low || key === high);
+        item.className = 'result-bar' + (isEdge ? ' is-edge' : '');
+        item.style.setProperty('--bar-index', String(index));
+        const fill = document.createElement('b');
+        fill.style.height = Math.round((counts.get(key) / peak) * 44 + 6) + 'px';
+        const value = document.createElement('span');
+        value.textContent = key;
+        const many = document.createElement('small');
+        many.textContent = '×' + counts.get(key);
+        item.append(fill, value, many);
+        bars.append(item);
+    });
+    panel.hidden = false;
 }
 
 function updateControls(activeIssue) {
@@ -239,6 +445,87 @@ function syncSelectedCard() {
     });
 }
 
+/* Placing a vote should feel like putting a card down, so the card travels from
+   the hand to the seat instead of simply lighting up. */
+function travelCard(button, value) {
+    if (reduceMotion || !button || typeof button.animate !== 'function') return;
+    const seat = document.getElementById('participant-' + myParticipantId);
+    if (!seat) return;
+    const from = button.getBoundingClientRect();
+    const to = seat.querySelector('.participant-card').getBoundingClientRect();
+    const ghost = document.createElement('div');
+    ghost.className = 'card-ghost';
+    ghost.textContent = value;
+    ghost.style.left = from.left + 'px';
+    ghost.style.top = from.top + 'px';
+    ghost.style.width = from.width + 'px';
+    ghost.style.height = from.height + 'px';
+    document.body.append(ghost);
+    const dx = to.left + (to.width - from.width) / 2 - from.left;
+    const dy = to.top + (to.height - from.height) / 2 - from.top;
+    const flight = ghost.animate([
+        { transform: 'translate(0, 0) rotate(0) scale(1)', opacity: 1 },
+        { transform: 'translate(' + dx * 0.5 + 'px, ' + (dy * 0.5 - 48) + 'px) rotate(-11deg) scale(0.94)', opacity: 1 },
+        { transform: 'translate(' + dx + 'px, ' + dy + 'px) rotate(0) scale(' + (to.width / from.width).toFixed(3) + ')', opacity: 0.25 }
+    ], { duration: 430, easing: 'cubic-bezier(.3,.7,.3,1)' });
+    /* Belt and braces: onfinish never runs if the frame clock is throttled (a
+       background tab, a renderer that is not compositing), and a ghost card left
+       on screen would sit above everything. */
+    const drop = () => ghost.remove();
+    flight.onfinish = drop;
+    flight.oncancel = drop;
+    window.setTimeout(drop, 900);
+}
+
+function countdown(done) {
+    const counter = document.getElementById('table-count');
+    let remaining = 3;
+    const tick = () => {
+        counter.textContent = String(remaining);
+        counter.classList.remove('is-ticking');
+        void counter.offsetWidth;
+        counter.classList.add('is-ticking');
+        remaining -= 1;
+        window.setTimeout(remaining > 0 ? tick : () => { counter.textContent = ''; done(); }, 430);
+    };
+    tick();
+}
+
+/* Reveal choreography: a countdown so the last vote still fits, then the cards
+   turn one after another around the ring, then the result lands. */
+function playReveal(participants, results) {
+    votingStatus = 'revealed';
+    document.querySelectorAll('.poker-card').forEach(card => { card.disabled = true; });
+    const seats = seatList();
+    const byId = new Map(participants.map(p => [p.id, p]));
+    const turn = () => {
+        seats.forEach(seat => {
+            const slot = Number(seat.style.getPropertyValue('--seat-index') || 0);
+            const participant = byId.get(Number(seat.dataset.participantId));
+            window.setTimeout(() => {
+                if (participant) renderParticipant(participant);
+                else seat.classList.add('is-revealed');
+            }, reduceMotion ? 0 : slot * STAGGER);
+        });
+        window.setTimeout(() => {
+            setResults(results, participants);
+            updateControls(currentIssue);
+            const label = document.getElementById('round-label');
+            if (label) label.textContent = 'Votos revelados';
+            const status = document.querySelector('.round-status');
+            if (status) status.classList.add('is-revealed');
+            if (results && results.has_consensus && !reduceMotion) {
+                const stage = document.getElementById('table-stage');
+                stage.classList.remove('is-consensus');
+                void stage.offsetWidth;
+                stage.classList.add('is-consensus');
+                window.setTimeout(() => stage.classList.remove('is-consensus'), 2000);
+            }
+        }, reduceMotion ? 0 : seats.length * STAGGER + 420);
+    };
+    if (reduceMotion) turn(); else countdown(turn);
+}
+
 function connect() {
     ws = new WebSocket(wsUrl);
     const status = document.getElementById('ws-status');
@@ -247,11 +534,13 @@ function connect() {
         const data = JSON.parse(event.data);
         if (data.type === 'room.state') {
             votingStatus = data.payload.room.voting_status;
+            currentIssue = data.payload.active_issue;
             data.payload.participants.forEach(renderParticipant);
+            layoutSeats();
             myCurrentVote = data.payload.your_vote;
             syncSelectedCard();
             renderActiveIssue(data.payload.active_issue);
-            setResults(data.payload.results);
+            setResults(data.payload.results, data.payload.participants);
             updateControls(data.payload.active_issue);
         } else if (data.type === 'participant.joined') {
             renderParticipant(data.participant);
@@ -265,22 +554,27 @@ function connect() {
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) { seat.classList.remove('is-reminded'); void seat.offsetWidth; seat.classList.add('is-reminded'); }
         } else if (data.type === 'room.revealed') {
-            votingStatus = 'revealed';
-            data.participants.forEach(renderParticipant);
-            setResults(data.results);
-            updateControls(true);
+            playReveal(data.participants, data.results);
         } else if (data.type === 'room.resetted') {
             votingStatus = 'voting';
+            document.getElementById('table-stage').classList.remove('is-consensus');
+            document.getElementById('table-count').textContent = '';
             document.querySelectorAll('.table-seat').forEach(seat => renderParticipant({id: Number(seat.dataset.participantId), has_voted: false, is_online: !seat.classList.contains('is-offline'), current_vote: null}));
             document.querySelectorAll('.poker-card').forEach(card => { card.classList.remove('selected'); card.setAttribute('aria-pressed', 'false'); });
             myCurrentVote = null;
             setResults(null);
-            updateControls(document.querySelector('#active-issue-display h1').textContent !== 'Estimación libre');
+            const label = document.getElementById('round-label');
+            if (label) label.textContent = currentIssue ? 'Votación abierta' : 'Estimación libre';
+            const status = document.querySelector('.round-status');
+            if (status) status.classList.remove('is-revealed');
+            updateControls(currentIssue);
         } else if (data.type === 'issue.activated') {
+            currentIssue = data.issue;
             renderActiveIssue(data.issue);
             document.querySelectorAll('.room-issue').forEach(item => item.classList.toggle('is-active', Number(item.dataset.issueId) === data.issue.id));
             updateControls(data.issue);
         } else if (data.type === 'issue.finished') {
+            currentIssue = null;
             renderActiveIssue(null);
             updateControls(false);
         } else if (data.type === 'error') showToast(data.message || 'No se pudo completar la acción.', true);
@@ -294,6 +588,7 @@ function castVote(value, button) {
     const next = myCurrentVote === value ? null : value;
     myCurrentVote = next;
     syncSelectedCard();
+    if (next !== null) travelCard(button, value);
     send('vote.cast', {value: next});
 }
 function revealRoom() { send('room.reveal'); }
@@ -307,6 +602,8 @@ function finishIssue() {
 document.getElementById('share-room').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); } catch { showToast('Copia el enlace desde la barra del navegador.', true); }
 });
+layoutSeats();
+syncTableMarks();
 connect();
 </script>
 {% endblock %}

@@ -48,6 +48,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
                         "has_voted": self.participant.current_vote is not None,
                         "is_online": True,
                         "current_vote": None,
+                        **self.participant.identity,
                     },
                 },
             )
@@ -281,7 +282,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
     def get_all_participants_state(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
         return [
-            self._participant_state(participant, room) for participant in room.participants.all()
+            self._participant_state(participant, room)
+            for participant in room.participants.order_by("joined_at", "id")
         ]
 
     @database_sync_to_async
@@ -300,7 +302,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "active_issue": self.serialize_issue(room.active_issue) if room.active_issue else None,
             "participants": [
                 self._participant_state(participant, room)
-                for participant in room.participants.all()
+                for participant in room.participants.order_by("joined_at", "id")
             ],
             "your_vote": Participant.objects.get(pk=self.participant.id).current_vote,
             "results": results,
@@ -323,6 +325,9 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "display_name": participant.display_name,
             "has_voted": participant.current_vote is not None,
             "is_online": participant.connection_count > 0,
+            # Cosmetic identity is not secret: it is needed to draw the ring while
+            # voting is still open, and reveals nothing about the vote itself.
+            **participant.identity,
         }
         state["current_vote"] = (
             participant.current_vote if room.voting_status == "revealed" else None

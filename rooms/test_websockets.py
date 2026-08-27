@@ -37,12 +37,15 @@ async def test_websocket_state_hides_votes_before_reveal():
 
     communicator, state = await connect_participant(room, owner)
     guest_state = next(item for item in state["participants"] if item["id"] == guest.id)
+    # Exact equality on purpose: it fails the moment any unexpected key reaches a
+    # client. Cosmetic identity is listed explicitly because it is not a secret.
     assert guest_state == {
         "id": guest.id,
         "display_name": "Guest",
         "has_voted": True,
         "is_online": False,
         "current_vote": None,
+        **guest.identity,
     }
 
     await communicator.disconnect()

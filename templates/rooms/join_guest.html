@@ -2,11 +2,83 @@
 {% block title %}Entrar a {{ room.name }} · Planning Pocket{% endblock %}
 {% block shell_class %}narrow-shell{% endblock %}
 {% block content %}
+{% include 'rooms/_table_sprite.html' %}
 <section class="join-layout">
     <div class="join-table-preview" aria-hidden="true"><span class="preview-seat seat-a"></span><span class="preview-seat seat-b"></span><span class="preview-seat seat-c"></span><span class="preview-seat seat-d"></span><div class="preview-table"><span>Planning<br>Pocket</span></div></div>
-    <div class="form-card-content join-content"><span class="eyebrow">Te invitaron a jugar</span><h1>{{ room.name }}</h1><p class="form-intro">Elige el nombre que verá el equipo. No necesitas crear una cuenta.</p>
-        <form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button type="submit" class="button button-primary button-block">Tomar asiento</button></form>
+    <div class="form-card-content join-content"><span class="eyebrow">Te invitaron a jugar</span><h1>{{ room.name }}</h1><p class="form-intro">Elige el nombre que verá el equipo y con qué te sientas a la mesa. No necesitas crear una cuenta.</p>
+        <form method="post" class="stack-form" id="join-form">{% csrf_token %}
+            {{ form.display_name.errors }}
+            <p>
+                <label for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
+                {{ form.display_name }}
+            </p>
+
+            <fieldset class="pick-grid pick-pet">
+                <legend>{{ form.pet.label }}</legend>
+                {{ form.pet.errors }}
+                <ul>
+                    {% for choice in form.pet %}
+                        <li>
+                            {{ choice.tag }}
+                            <label for="{{ choice.id_for_label }}">
+                                <svg viewBox="0 0 40 40" aria-hidden="true"><use href="#pet-{{ choice.data.value }}"></use></svg>
+                                {{ choice.choice_label }}
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </fieldset>
+
+            <fieldset class="pick-grid pick-color">
+                <legend>{{ form.color_index.label }}</legend>
+                {{ form.color_index.errors }}
+                <ul>
+                    {% for choice in form.color_index %}
+                        <li>
+                            {{ choice.tag }}
+                            <label for="{{ choice.id_for_label }}" style="--pick-hue: var(--seat-hue-{{ choice.data.value }});"><span class="sr-only">{{ choice.choice_label }}</span></label>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </fieldset>
+
+            <div class="pick-preview" id="pick-preview">
+                <span class="seat-pet" aria-hidden="true" hidden><svg viewBox="0 0 40 40"><use href="#pet-gato"></use></svg></span>
+                <span class="seat-avatar" aria-hidden="true" hidden><svg viewBox="0 0 30 22"><use href="#face-sereno"></use></svg></span>
+                <span id="pick-caption">Si no eliges, te asignamos una mascota y un color al entrar.</span>
+            </div>
+
+            <button type="submit" class="button button-primary button-block">Tomar asiento</button>
+        </form>
         <p class="privacy-note"><span aria-hidden="true">●</span> Tu voto seguirá oculto hasta que el facilitador lo revele.</p>
     </div>
 </section>
+
+<script>
+(() => {
+    const form = document.getElementById('join-form');
+    const preview = document.getElementById('pick-preview');
+    const caption = document.getElementById('pick-caption');
+    const petBox = preview.querySelector('.seat-pet');
+    const avatarBox = preview.querySelector('.seat-avatar');
+    const petUse = petBox.querySelector('use');
+
+    function refresh() {
+        const pet = form.querySelector('input[name="pet"]:checked');
+        const colour = form.querySelector('input[name="color_index"]:checked');
+        if (pet) petUse.setAttribute('href', '#pet-' + pet.value);
+        if (colour) preview.style.setProperty('--seat-hue', 'var(--seat-hue-' + colour.value + ')');
+        petBox.hidden = !pet;
+        avatarBox.hidden = !pet && !colour;
+        caption.textContent = pet || colour
+            ? 'Así te verá el equipo en la mesa.'
+            : 'Si no eliges, te asignamos una mascota y un color al entrar.';
+    }
+
+    form.addEventListener('change', event => {
+        if (event.target.name === 'pet' || event.target.name === 'color_index') refresh();
+    });
+    refresh();
+})();
+</script>
 {% endblock %}

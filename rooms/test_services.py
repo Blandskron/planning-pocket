@@ -58,6 +58,17 @@ class TestVotingRoundService:
         with pytest.raises(RoomActionError, match="locked"):
             cast_vote(self.room.id, self.guest.id, "8")
 
+    def test_average_is_rounded_for_display(self):
+        """A repeating division must not reach the table as 1.6666666666666667."""
+        third = Participant.objects.create(room=self.room, display_name="Third")
+        cast_vote(self.room.id, self.owner_participant.id, "1")
+        cast_vote(self.room.id, self.guest.id, "2")
+        cast_vote(self.room.id, third.id, "2")
+
+        results = calculate_results(self.room)
+        assert results["average"] == 1.7
+        assert len(str(results["average"])) <= 4
+
     def test_only_facilitator_can_control_the_round(self):
         activate_issue(self.room.id, self.issue.id, self.owner)
 

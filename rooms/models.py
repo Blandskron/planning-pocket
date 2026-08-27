@@ -2,9 +2,11 @@
 # Author: Bastian Landskron (Cybersecurity, DevOps & AI)
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
+from .identity import COLOR_COUNT, FACES, PETS, derive_identity
 from .utils import generate_guest_token, generate_public_id
 
 
@@ -125,12 +127,45 @@ class Participant(models.Model):
         default=generate_guest_token,
         help_text="Session-linked token for tracking guest identities without user accounts."
     )
+    avatar = models.CharField(
+        max_length=20,
+        choices=FACES,
+        blank=True,
+        help_text="Cosmetic face drawn on the seat. Blank means derive one."
+    )
+    pet = models.CharField(
+        max_length=20,
+        choices=PETS,
+        blank=True,
+        help_text="Cosmetic companion drawn beside the seat. Blank means derive one."
+    )
+    color_index = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MaxValueValidator(COLOR_COUNT - 1)],
+        help_text="Index into the seat palette. Null means derive one."
+    )
     joined_at = models.DateTimeField(auto_now_add=True)
     connection_count = models.PositiveIntegerField(default=0)
     last_reminded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ('room', 'user')  # A registered user can only join a room once
+
+    @property
+    def identity(self):
+        """Return the cosmetic identity used to draw this seat.
+
+        Stored choices win; anything unset falls back to a stable derivation, so
+        participants created before these fields existed still get a seat that
+        looks like theirs and stays the same between sessions.
+        """
+        face, pet, color = derive_identity(self.guest_token or self.pk)
+        return {
+            'avatar': self.avatar or face,
+            'pet': self.pet or pet,
+            'color': self.color_index if self.color_index is not None else color,
+        }
 
     def __str__(self):
         return self.display_name

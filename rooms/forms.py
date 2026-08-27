@@ -3,6 +3,7 @@
 
 from django import forms
 
+from .identity import COLOR_CHOICES, PETS
 from .models import Issue, PokerRoom
 
 
@@ -25,6 +26,24 @@ class GuestJoinForm(forms.Form):
         widget=forms.TextInput(
             attrs={'placeholder': 'Ej. Andrea', 'autocomplete': 'name', 'autofocus': True}
         )
+    )
+    pet = forms.ChoiceField(
+        choices=PETS,
+        label='Tu mascota',
+        required=False,
+        widget=forms.RadioSelect,
+        error_messages={'invalid_choice': 'Elige una de las mascotas disponibles.'},
+    )
+    color_index = forms.TypedChoiceField(
+        choices=COLOR_CHOICES,
+        coerce=int,
+        # Without this an unanswered picker cleans to '', which a
+        # PositiveSmallIntegerField cannot store.
+        empty_value=None,
+        label='Tu color',
+        required=False,
+        widget=forms.RadioSelect,
+        error_messages={'invalid_choice': 'Elige uno de los colores disponibles.'},
     )
 
 class IssueForm(forms.ModelForm):

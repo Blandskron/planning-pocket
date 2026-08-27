@@ -76,7 +76,9 @@ def calculate_results(room):
 
     average = None
     if numeric_votes:
-        average = float(sum(numeric_votes) / len(numeric_votes))
+        # Rounded here because this value is rendered verbatim: an unrounded
+        # Decimal division reaches the table as 1.6666666666666667.
+        average = round(float(sum(numeric_votes) / len(numeric_votes)), 1)
 
     return {
         "vote_count": len(votes),

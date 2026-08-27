@@ -51,6 +51,26 @@
   --radius-pill: 999px;
   --content: 1240px;
   --header-height: 76px;
+
+  /* Stage layers. Declared once so anything added to the table stacks
+     predictably instead of guessing a z-index. */
+  --z-felt: 1;
+  --z-marks: 2;
+  --z-decal: 3;
+  --z-pets: 4;
+  --z-seats: 5;
+  --z-fly: 6;
+  --z-stage-ui: 7;
+
+  /* Seat palette. Shared by both themes because seats always sit on the felt,
+     which is dark either way. Indexes match rooms/identity.COLOR_COUNT. */
+  --seat-hue-0: #e08a4f;
+  --seat-hue-1: #7fb6a0;
+  --seat-hue-2: #d9a15c;
+  --seat-hue-3: #8fa8d8;
+  --seat-hue-4: #cf7f7f;
+  --seat-hue-5: #a5c47a;
+  --seat-hue-6: #c2a0cc;
 }
 
 :root[data-theme="dark"] {
@@ -340,70 +360,130 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 .close-room:hover { background: var(--danger-soft); }
 
 .poker-table-card { position: relative; min-width: 0; min-height: 550px; overflow: hidden; }
-.round-heading { position: relative; z-index: 3; padding: clamp(1.35rem, 3vw, 2.2rem) 1rem 0.5rem; text-align: center; }
+.round-heading { position: relative; z-index: var(--z-stage-ui); padding: clamp(1.35rem, 3vw, 2.2rem) 1rem 0.5rem; text-align: center; }
 .round-status { justify-content: center; gap: 0.42rem; margin-bottom: 0.55rem; color: var(--success); font-size: 0.69rem; font-weight: 820; text-transform: uppercase; letter-spacing: 0.07em; }
 .round-status > span:first-child { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px var(--success-soft); }
 .round-status.is-revealed { color: var(--accent); }
 .round-heading h1 { margin: 0; font-size: clamp(1.35rem, 2.4vw, 2rem); }
 .round-heading p { max-width: 700px; margin: 0.42rem auto 0; color: var(--muted); font-size: 0.82rem; }
-.table-stage { position: relative; min-height: 390px; max-width: 1000px; margin: 0 auto; }
-.table-oval { position: absolute; inset: 50px 11% 34px; display: grid; place-items: center; border: 12px solid color-mix(in srgb, var(--felt-deep) 78%, #000); border-radius: 50%; outline: 1px solid var(--felt-line); background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--felt) 93%, white), var(--felt-deep)); box-shadow: inset 0 0 45px rgba(0,0,0,0.23), 0 18px 40px rgba(20,45,37,0.22); }
+
+/* The table is a stage: seats sit on a ring computed from the participant count,
+   the felt centre carries round information, and every layer has a declared order. */
+.table-stage { --ring-rx: 40%; --ring-ry: 33%; --seat-w: 140px; --card-w: 52px; --card-h: 72px; --av-w: 40px; --pet-w: 30px; --stage-h: 390px; position: relative; min-height: var(--stage-h); max-width: 1000px; margin: 0 auto; }
+.table-oval { position: absolute; inset: 50px 11% 34px; z-index: var(--z-felt); border: 12px solid color-mix(in srgb, var(--felt-deep) 78%, #000); border-radius: 50%; outline: 1px solid var(--felt-line); background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--felt) 93%, white), var(--felt-deep)); box-shadow: inset 0 0 45px rgba(0,0,0,0.23), 0 18px 40px rgba(20,45,37,0.22); }
 .table-oval::after { content: ''; position: absolute; inset: 9px; border: 1px solid var(--felt-line); border-radius: inherit; }
-.table-monogram { color: var(--felt-text); font-family: Georgia, serif; font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; letter-spacing: -0.15em; transform: translateX(-0.08em); }
-.table-caption { position: absolute; top: calc(50% + 2.5rem); color: var(--felt-text); font-size: 0.58rem; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
-.table-seats { position: absolute; inset: 0; z-index: 2; }
-.table-seat { position: absolute; width: 98px; display: grid; justify-items: center; gap: 0.23rem; }
-.table-seat:nth-child(1) { top: 0; left: calc(50% - 49px); }
-.table-seat:nth-child(2) { top: 11%; right: 12%; }
-.table-seat:nth-child(3) { top: 38%; right: 1%; }
-.table-seat:nth-child(4) { right: 15%; bottom: 0; }
-.table-seat:nth-child(5) { bottom: 0; left: calc(50% - 49px); }
-.table-seat:nth-child(6) { bottom: 0; left: 15%; }
-.table-seat:nth-child(7) { top: 38%; left: 1%; }
-.table-seat:nth-child(8) { top: 11%; left: 12%; }
-.table-seat:nth-child(n+9) { position: relative; float: left; margin: 8rem 0.25rem 0; }
-.participant-card { position: relative; width: 64px; height: 88px; perspective: 680px; }
+.table-glow { position: absolute; inset: 50px 11% 34px; z-index: var(--z-marks); border-radius: 50%; opacity: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--warning) 55%, transparent), transparent 68%); }
+.table-stage.is-consensus .table-glow { animation: consensus-bloom 1.9s ease-out; }
+@keyframes consensus-bloom { 0% { opacity: 0; } 22% { opacity: 1; } 100% { opacity: 0; } }
+
+.table-marks { position: absolute; inset: 50px 11% 34px; z-index: var(--z-marks); display: grid; place-content: center; justify-items: center; gap: 0.5rem; pointer-events: none; text-align: center; }
+.table-count { color: var(--felt-text); font-family: Georgia, serif; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800; line-height: 1; }
+.table-count:empty { display: none; }
+.table-count.is-ticking { animation: count-pop 0.42s ease-out; }
+@keyframes count-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+.table-pile { display: flex; height: 40px; align-items: center; }
+/* A dealt card exists or it does not: the pile is driven by the number of votes
+   placed, with an entry animation, instead of a row of always-present cards faded
+   in and out. One less piece of state, and nothing to leave half-faded. */
+.table-pile span { width: 26px; height: 36px; margin-left: -13px; border-radius: 5px; border: 1px solid rgba(0,0,0,0.28); background: var(--card-face); box-shadow: 0 3px 8px rgba(0,0,0,0.3); transform: rotate(var(--pile-tilt, 0deg)); animation: card-deal 0.26s cubic-bezier(.2,.8,.3,1.1); }
+.table-pile span:first-child { margin-left: 0; }
+@keyframes card-deal { from { opacity: 0; transform: rotate(var(--pile-tilt, 0deg)) scale(0.66) translateY(-10px); } to { opacity: 1; transform: rotate(var(--pile-tilt, 0deg)) scale(1) translateY(0); } }
+.table-tally { color: var(--felt-text); font-size: 0.62rem; font-weight: 820; letter-spacing: 0.15em; text-transform: uppercase; }
+
+.table-seats { position: absolute; inset: 0; z-index: var(--z-seats); }
+.table-seat { --seat-angle: 90deg; --seat-index: 0; position: absolute; left: calc(50% + var(--ring-rx) * cos(var(--seat-angle))); top: calc(50% + var(--ring-ry) * sin(var(--seat-angle))); width: var(--seat-w); display: grid; justify-items: center; gap: 0.23rem; transform: translate(-50%, -50%); }
+.seat-figure { display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+/* A person at the table: their own colour, a face, and a companion beside them.
+   All three are cosmetic and derived from data that is public while voting. */
+.seat-avatar { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: var(--av-w); height: var(--av-w); border-radius: 50%; border: 2px solid color-mix(in srgb, var(--felt-deep) 70%, #000); background: var(--seat-hue, var(--seat-hue-0)); box-shadow: 0 5px 12px rgba(6, 20, 17, 0.32), inset 0 -5px 9px rgba(0, 0, 0, 0.14); animation: seat-breathe 3.8s ease-in-out infinite; animation-delay: calc(var(--seat-index) * 0.31s); }
+.seat-avatar svg { width: 66%; height: auto; }
+.is-me .seat-avatar { border-color: #f3bd78; box-shadow: 0 0 0 3px rgba(243,189,120,0.34), 0 5px 12px rgba(6,20,17,0.32); }
+.seat-pet { position: relative; flex: 0 0 auto; width: var(--pet-w); height: var(--pet-w); color: color-mix(in srgb, var(--seat-hue, var(--seat-hue-0)) 76%, var(--card-face)); animation: pet-bob 2.9s ease-in-out infinite; animation-delay: calc(var(--seat-index) * 0.23s); }
+.seat-pet svg { width: 100%; height: 100%; overflow: visible; }
+@keyframes pet-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
+/* display, not a fade: on a 5x14px marker the transition buys nothing and it is
+   one more thing that has to finish for the seat to read correctly. */
+.seat-zzz { position: absolute; top: -7px; right: -4px; display: none; color: var(--felt-text); font-size: 0.56rem; font-weight: 820; }
+
+/* The pet mirrors its owner with body language instead of another label. */
+.has-voted .seat-pet { animation-name: pet-hop; animation-duration: 2.1s; }
+@keyframes pet-hop { 0%, 62%, 100% { transform: translateY(0) rotate(0); } 74% { transform: translateY(-7px) rotate(-7deg); } 88% { transform: translateY(-2px) rotate(4deg); } }
+.is-thinking .seat-pet { animation-duration: 5.2s; opacity: 0.82; }
+.is-thinking .seat-zzz { display: block; }
+.is-offline .seat-pet, .is-offline .seat-avatar { animation-play-state: paused; filter: saturate(0.35); }
+
+.participant-card { position: relative; width: var(--card-w); height: var(--card-h); perspective: 680px; animation: seat-breathe 3.8s ease-in-out infinite; animation-delay: calc(var(--seat-index) * 0.31s); }
+@keyframes seat-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+.is-offline .participant-card { animation-play-state: paused; }
 .participant-card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.56s cubic-bezier(.2,.72,.3,1.05); }
 .is-revealed .participant-card-inner { transform: rotateY(180deg); }
 .participant-face { position: absolute; inset: 0; display: grid; place-items: center; border: 2px solid color-mix(in srgb, var(--card-face) 75%, var(--border)); border-radius: 10px; backface-visibility: hidden; box-shadow: 0 7px 15px rgba(13, 32, 27, 0.22); }
 .participant-back { background: repeating-linear-gradient(135deg, rgba(255,255,255,0.13) 0 2px, transparent 2px 7px), var(--accent); }
 .participant-back::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(255,255,255,0.4); border-radius: 5px; }
 .participant-back::after { content: 'PP'; color: var(--accent-contrast); font-size: 0.72rem; font-weight: 900; letter-spacing: -0.06em; }
+.has-voted.just-voted .participant-back { animation: card-place 0.42s cubic-bezier(.2,.8,.3,1.1); }
+@keyframes card-place { from { opacity: 0; transform: translateY(-14px) rotate(-7deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
 .is-thinking .participant-back { border-style: dashed; border-color: var(--border-strong); background: var(--surface-hover); }
 .is-thinking .participant-back::before { border-color: var(--border); }
-.is-thinking .participant-back::after { content: '…'; color: var(--warning); font-size: 1.65rem; }
+.is-thinking .participant-back::after { content: '…'; color: var(--warning); font-size: 1.65rem; animation: think-pulse 2.1s ease-in-out infinite; animation-delay: calc(var(--seat-index) * 0.23s); }
+@keyframes think-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 .is-offline .participant-back { background: var(--surface-inset); }
-.is-offline .participant-back::after { content: '—'; color: var(--muted); font-size: 1.4rem; }
-.participant-front { transform: rotateY(180deg); color: var(--card-ink); background: var(--card-face); font-family: var(--font-mono); font-size: 1.75rem; font-weight: 900; }
+.is-offline .participant-back::after { content: '—'; color: var(--muted); font-size: 1.4rem; animation: none; }
+.participant-front { transform: rotateY(180deg); color: var(--card-ink); background: var(--card-face); font-family: var(--font-mono); font-size: clamp(1.1rem, calc(var(--card-w) * 0.4), 1.75rem); font-weight: 900; }
 .participant-front::after { content: 'PP'; position: absolute; right: 5px; bottom: 3px; color: color-mix(in srgb, var(--card-ink) 38%, transparent); font-size: 0.42rem; letter-spacing: -0.05em; }
 .participant-front.no-vote { color: var(--muted); }
 .is-me .participant-face { border-color: #f3bd78; box-shadow: 0 0 0 3px rgba(243,189,120,0.28), 0 7px 15px rgba(13,32,27,0.22); }
-.seat-name { max-width: 96px; padding: 0.08rem 0.28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 5px; color: var(--text-soft); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 1px 3px rgba(13,32,27,0.1); font-size: 0.7rem; font-weight: 820; }
+.seat-name { max-width: calc(var(--seat-w) - 2px); padding: 0.08rem 0.28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 5px; color: var(--text-soft); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 1px 3px rgba(13,32,27,0.1); font-size: 0.7rem; font-weight: 820; }
 .seat-name span { margin-left: 0.25rem; padding: 0.08rem 0.28rem; border-radius: 4px; color: var(--accent); background: var(--accent-soft); font-size: 0.53rem; }
 .seat-state { padding: 0.05rem 0.24rem; border-radius: 4px; color: var(--muted); background: color-mix(in srgb, var(--surface) 90%, transparent); font-size: 0.6rem; font-weight: 650; }
 .has-voted .seat-state { color: var(--success); }
 .is-thinking .seat-state { color: var(--warning); }
 .is-offline { opacity: 0.58; }
-.seat-reminder { min-height: 28px; color: var(--warning); }
+/* Taken out of flow: in flow it changed the seat's height, which made the seat
+   jump every time someone voted and left the ring sized for the tallest seat. */
+.seat-reminder { position: absolute; top: 100%; left: 50%; min-height: 28px; color: var(--warning); background: color-mix(in srgb, var(--surface) 92%, transparent); border-radius: 7px; transform: translateX(-50%); }
 .is-reminded .participant-card::after { content: ''; position: absolute; inset: -7px; border: 2px solid var(--warning); border-radius: 14px; animation: gentle-nudge 1.05s ease-out 2; }
 @keyframes gentle-nudge { from { opacity: 1; transform: scale(.82); } to { opacity: 0; transform: scale(1.18); } }
-.room-controls { position: relative; z-index: 3; min-height: 66px; padding: 0.55rem 1rem 1rem; justify-content: center; flex-wrap: wrap; gap: 0.55rem; }
+
+/* A card that travels from the hand to the seat, so placing a vote is a physical act. */
+.card-ghost { position: fixed; z-index: 200; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--card-ink); background: var(--card-face); box-shadow: var(--shadow-md); font-family: var(--font-mono); font-size: 1.1rem; font-weight: 900; pointer-events: none; }
+
+.room-controls { position: relative; z-index: var(--z-stage-ui); min-height: 66px; padding: 0.55rem 1rem 1rem; justify-content: center; flex-wrap: wrap; gap: 0.55rem; }
 .finish-issue { width: min(100%, 280px); display: flex; gap: 0.42rem; }
 .finish-issue input { min-width: 0; min-height: 44px; padding: 0.55rem 0.62rem; }
-.round-summary { padding: 0.55rem 0.72rem; border-radius: 9px; color: var(--success); background: var(--success-soft); font-size: 0.7rem; font-weight: 800; }
 
+/* The result of a round is the emotional peak; it gets a panel, not a label. */
+.round-result { position: relative; z-index: var(--z-stage-ui); margin: 0 clamp(0.75rem, 3vw, 1.75rem) 1rem; padding: 0.9rem 1rem; display: grid; gap: 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-sm); }
+.result-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; }
+.result-figure { display: grid; }
+.result-figure strong { font-size: 1.7rem; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.05; }
+.result-figure span { color: var(--muted); font-size: 0.6rem; font-weight: 820; letter-spacing: 0.12em; text-transform: uppercase; }
+.result-verdict { margin: 0 0 0 auto; padding: 0.35rem 0.7rem; border-radius: var(--radius-pill); font-size: 0.72rem; font-weight: 820; }
+.result-verdict.is-consensus { color: var(--success); background: var(--success-soft); }
+.result-verdict.is-split { color: var(--accent); background: var(--accent-soft); }
+.result-bars { margin: 0; padding: 0; display: flex; align-items: flex-end; gap: 0.4rem; min-height: 72px; list-style: none; }
+.result-bar { flex: 1 1 0; max-width: 60px; display: grid; justify-items: center; gap: 0.3rem; }
+.result-bar b { display: block; width: 100%; min-height: 4px; border-radius: 5px 5px 2px 2px; background: var(--success); transform-origin: bottom; animation: bar-grow 0.46s cubic-bezier(.2,.8,.3,1) backwards; animation-delay: calc(var(--bar-index, 0) * 60ms); }
+.result-bar.is-edge b { background: var(--accent); }
+@keyframes bar-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.result-bar span { color: var(--text-soft); font-family: var(--font-mono); font-size: 0.68rem; }
+.result-bar small { color: var(--muted); font-size: 0.58rem; font-weight: 750; }
+
+/* The deck reads as a hand of cards: fanned, overlapping, anchored to the bottom edge. */
 .room-deck-wrap { grid-column: 2; padding: 0.9rem 1rem 1.05rem; }
 .deck-heading { justify-content: space-between; gap: 1rem; margin-bottom: 0.65rem; }
 .deck-heading > div { display: grid; }
 .deck-eyebrow { color: var(--accent); font-size: 0.56rem; font-weight: 850; letter-spacing: 0.1em; text-transform: uppercase; }
 .deck-heading strong { font-size: 0.85rem; }
 .deck-heading > span { max-width: 420px; color: var(--muted); font-size: 0.7rem; text-align: right; }
-.deck { margin: 0; padding: 0.3rem 0.25rem 0.55rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.55rem; perspective: 900px; }
-.poker-card { position: relative; flex: 0 0 54px; width: 54px; height: 76px; padding: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--card-ink); background: var(--card-face); box-shadow: var(--shadow-xs); cursor: pointer; font-family: var(--font-mono); font-size: 1.18rem; font-weight: 900; transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s, background 0.18s; }
+.deck { margin: 0; padding: 1.35rem 0.25rem 0.55rem; display: flex; flex-wrap: nowrap; justify-content: center; align-items: flex-end; }
+.poker-card { --card-index: 0; --card-total: 1; --card-fan: 3.4deg; --card-lift: 0px; --card-spin: calc((var(--card-index) - (var(--card-total) - 1) / 2) * var(--card-fan)); position: relative; flex: 0 0 54px; width: 54px; height: 76px; margin-inline: -5px; padding: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--card-ink); background: var(--card-face); box-shadow: var(--shadow-xs); cursor: pointer; font-family: var(--font-mono); font-size: 1.18rem; font-weight: 900; transform: translateY(var(--card-lift)) rotate(var(--card-spin)); transform-origin: 50% 150%; transition: transform 0.18s cubic-bezier(.2,.7,.3,1.2), box-shadow 0.18s, border-color 0.18s, background 0.18s, color 0.18s; }
 .poker-card::before { content: ''; position: absolute; inset: 4px; border: 1px solid color-mix(in srgb, var(--card-ink) 14%, transparent); border-radius: 6px; }
 .poker-card span { z-index: 1; }
 .poker-card.is-wide-value { font-size: 0.62rem; letter-spacing: -0.03em; }
-.poker-card.selected { color: var(--accent-contrast); border-color: var(--accent); background: var(--accent); box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 26%, transparent); transform: translateY(-7px) rotate(-1deg); }
+.poker-card:focus-visible { z-index: 4; }
+.poker-card.selected { --card-lift: -18px; z-index: 3; color: var(--accent-contrast); border-color: var(--accent); background: var(--accent); box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 26%, transparent); }
 .poker-card.selected::before { border-color: color-mix(in srgb, var(--accent-contrast) 38%, transparent); }
 .poker-card:disabled { opacity: 0.42; cursor: not-allowed; filter: saturate(0.55); }
 
@@ -412,9 +492,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 #toast.show { opacity: 1; transform: translateY(0); }
 
 @media (hover: hover) and (pointer: fine) {
-  .button:hover, .room-button:hover, .poker-card:hover:not(:disabled) { transform: translateY(-1px); }
-  .poker-card:hover:not(:disabled) { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-6px) rotate(-1deg); }
-  .poker-card.selected:hover { transform: translateY(-8px) rotate(-1deg); }
+  .button:hover, .room-button:hover { transform: translateY(-1px); }
+  .poker-card:hover:not(:disabled) { --card-lift: -14px; z-index: 2; border-color: var(--accent); box-shadow: var(--shadow-md); }
+  .poker-card.selected:hover { --card-lift: -24px; }
 }
 
 @media (max-width: 1100px) {
@@ -461,19 +541,29 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
   .poker-table-card { min-height: 0; overflow: visible; }
   .round-heading { padding: 1.25rem 0.75rem 0.35rem; }
   .round-heading p { font-size: 0.76rem; }
-  .table-stage { min-height: 0; overflow-x: auto; overscroll-behavior-inline: contain; padding: 0.85rem 0.7rem 0.35rem; scrollbar-width: thin; }
-  .table-oval { display: none; }
-  .table-seats { position: static; width: max-content; display: flex; gap: 0.75rem; }
-  .table-seat, .table-seat:nth-child(n) { position: static; width: 84px; margin: 0; flex: 0 0 84px; }
-  .participant-card { width: 62px; height: 86px; }
+  .table-stage { min-height: 0; padding: 0.85rem 0 0.35rem; }
+  .table-oval, .table-glow { display: none; }
+  .table-marks { position: static; inset: auto; padding-bottom: 0.7rem; }
+  .table-count, .table-tally { color: var(--muted); }
+  .table-pile span { border-color: var(--border); }
+  .table-seats { position: static; display: flex; gap: 0.75rem; width: max-content; min-width: 100%; padding: 0 0.7rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  /* relative, not static: the reminder overlay still anchors to its own seat */
+  .table-seat { position: relative; left: auto; top: auto; width: 104px; flex: 0 0 104px; transform: none; }
+  .participant-card { width: 52px; height: 72px; }
+  .seat-figure { flex-wrap: wrap; gap: 3px; }
+  .seat-avatar { width: 32px; height: 32px; }
+  .seat-pet { width: 24px; height: 24px; }
+  .seat-name { max-width: 102px; }
+  .round-result { margin-inline: 0.75rem; }
+  .result-bars { min-height: 62px; }
   .room-controls { padding: 0.8rem; }
   .room-controls > .room-button { flex: 1 1 130px; }
   .finish-issue { flex: 1 1 100%; width: 100%; }
   .room-deck-wrap { padding: 0.8rem; }
   .deck-heading { align-items: flex-end; }
   .deck-heading > span { max-width: 190px; font-size: 0.63rem; }
-  .deck { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; padding: 0.45rem 0.2rem 0.85rem; scrollbar-width: thin; }
-  .poker-card { flex-basis: 52px; width: 52px; height: 74px; }
+  .deck { justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; padding: 1.1rem 0.2rem 0.85rem; scrollbar-width: thin; }
+  .poker-card { --card-fan: 2.2deg; flex-basis: 52px; width: 52px; height: 74px; }
   .room-issue-list { display: flex; overflow-x: auto; padding-bottom: 0.4rem; }
   .room-issue { flex: 0 0 min(82vw, 260px); }
   .decision-actions { flex-direction: column-reverse; }
@@ -498,3 +588,23 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+
+/* Character picker on the join screen */
+.pick-grid { display: grid; gap: 0.4rem; margin: 0; padding: 0; border: 0; }
+.pick-grid legend { padding: 0; color: var(--text-soft); font-size: 0.8rem; font-weight: 750; }
+.pick-grid ul { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.45rem; list-style: none; }
+.pick-grid li { display: flex; }
+.pick-grid label { margin: 0; cursor: pointer; }
+.pick-grid input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.pick-pet label { width: 62px; padding: 0.4rem 0.2rem 0.3rem; display: grid; justify-items: center; gap: 0.18rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--muted); font-size: 0.6rem; font-weight: 780; transition: border-color 0.15s, background 0.15s, transform 0.15s, color 0.15s; }
+.pick-pet label:hover { border-color: var(--border-strong); background: var(--surface-hover); transform: translateY(-2px); }
+.pick-pet svg { width: 34px; height: 34px; color: var(--primary); }
+.pick-pet input:checked + label { border-color: var(--accent); color: var(--text); background: var(--accent-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent); }
+.pick-pet input:focus-visible + label { outline: 3px solid var(--focus); outline-offset: 3px; }
+.pick-color label { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--border); background: var(--pick-hue); transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+.pick-color label:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+.pick-color input:checked + label { border-color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 22%, transparent); transform: translateY(-2px); }
+.pick-color input:focus-visible + label { outline: 3px solid var(--focus); outline-offset: 3px; }
+.pick-preview { --av-w: 40px; --pet-w: 32px; min-height: 62px; display: flex; align-items: center; gap: 0.6rem; margin-top: 0.2rem; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: linear-gradient(150deg, var(--felt), var(--felt-deep)); }
+.pick-preview .seat-avatar, .pick-preview .seat-pet { animation: none; }
+.pick-preview span { color: var(--felt-text); font-size: 0.68rem; font-weight: 780; letter-spacing: 0.06em; text-transform: uppercase; }

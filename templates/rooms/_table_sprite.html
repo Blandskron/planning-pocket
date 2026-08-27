@@ -1,0 +1,80 @@
+{% comment %}
+Pets and faces as one sprite of SVG symbols. Defined once per page and referenced
+with <use>, so both server-rendered seats and seats created over the WebSocket draw
+from the same source. Purely decorative: every symbol is aria-hidden at the point of
+use and the seat state is always also written as text.
+{% endcomment %}
+<svg class="table-sprite" aria-hidden="true" focusable="false" width="0" height="0"><defs>
+
+    <symbol id="pet-gato" viewBox="0 0 40 40">
+        <path d="M31 29q9 1 6-8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M9 17 11 7 18 12z M31 17 29 7 22 12z" fill="currentColor"/>
+        <ellipse cx="20" cy="25" rx="12" ry="10.5" fill="currentColor"/>
+        <circle cx="15.6" cy="24" r="1.9" fill="#12241d"/><circle cx="24.4" cy="24" r="1.9" fill="#12241d"/>
+        <path d="M18 28.5q2 2 4 0" fill="none" stroke="#12241d" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="pet-perro" viewBox="0 0 40 40">
+        <path d="M30 30q8 3 7-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="20" cy="24" rx="11.5" ry="10.5" fill="currentColor"/>
+        <ellipse cx="8.5" cy="24" rx="4" ry="7.5" fill="currentColor"/>
+        <ellipse cx="31.5" cy="24" rx="4" ry="7.5" fill="currentColor"/>
+        <circle cx="16" cy="22.5" r="1.9" fill="#12241d"/><circle cx="24" cy="22.5" r="1.9" fill="#12241d"/>
+        <ellipse cx="20" cy="28" rx="4.5" ry="3.4" fill="#f7f1e1" opacity=".82"/>
+        <ellipse cx="20" cy="27" rx="1.6" ry="1.2" fill="#12241d"/>
+    </symbol>
+
+    <symbol id="pet-axolote" viewBox="0 0 40 40">
+        <path d="M9 18 2 13M9 23 1 22M9 28 3 31M31 18 38 13M31 23 39 22M31 28 37 31" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+        <ellipse cx="20" cy="24" rx="11.5" ry="10" fill="currentColor"/>
+        <circle cx="15.8" cy="23" r="1.8" fill="#12241d"/><circle cx="24.2" cy="23" r="1.8" fill="#12241d"/>
+        <path d="M16.5 28q3.5 2.6 7 0" fill="none" stroke="#12241d" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="pet-capibara" viewBox="0 0 40 40">
+        <circle cx="11" cy="14" r="3.4" fill="currentColor"/><circle cx="29" cy="14" r="3.4" fill="currentColor"/>
+        <rect x="7" y="14" width="26" height="21" rx="9" fill="currentColor"/>
+        <circle cx="15.5" cy="23" r="1.8" fill="#12241d"/><circle cx="24.5" cy="23" r="1.8" fill="#12241d"/>
+        <rect x="15" y="27" width="10" height="6" rx="3" fill="#f7f1e1" opacity=".78"/>
+        <path d="M18 30h4" fill="none" stroke="#12241d" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="pet-dragon" viewBox="0 0 40 40">
+        <path d="M28 12q9-4 9 6-5 5-9 2z" fill="currentColor" opacity=".62"/>
+        <path d="M13 14 15 5 20 12z" fill="currentColor"/>
+        <ellipse cx="20" cy="25" rx="11.5" ry="10" fill="currentColor"/>
+        <path d="M9 20 5 17M9 20 5 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="15.6" cy="23.5" r="1.8" fill="#12241d"/><circle cx="24.4" cy="23.5" r="1.8" fill="#12241d"/>
+        <path d="M15 29q5 3.4 10 0" fill="none" stroke="#12241d" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="pet-rana" viewBox="0 0 40 40">
+        <ellipse cx="20" cy="27" rx="13" ry="9.5" fill="currentColor"/>
+        <circle cx="13" cy="17" r="5.6" fill="currentColor"/><circle cx="27" cy="17" r="5.6" fill="currentColor"/>
+        <circle cx="13" cy="17" r="3.1" fill="#f7f1e1"/><circle cx="27" cy="17" r="3.1" fill="#f7f1e1"/>
+        <circle cx="13.6" cy="17.4" r="1.6" fill="#12241d"/><circle cx="26.4" cy="17.4" r="1.6" fill="#12241d"/>
+        <path d="M13.5 29q6.5 4 13 0" fill="none" stroke="#12241d" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="face-sereno" viewBox="0 0 30 22">
+        <circle cx="9" cy="8" r="2.4" fill="#12241d"/><circle cx="21" cy="8" r="2.4" fill="#12241d"/>
+        <path d="M10 15q5 3.4 10 0" fill="none" stroke="#12241d" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="face-contento" viewBox="0 0 30 22">
+        <path d="M6 9q3-4 6 0M18 9q3-4 6 0" fill="none" stroke="#12241d" stroke-width="2.1" stroke-linecap="round"/>
+        <path d="M9 14q6 6 12 0" fill="none" stroke="#12241d" stroke-width="2.1" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="face-pillo" viewBox="0 0 30 22">
+        <path d="M6 8q3-3 6 0" fill="none" stroke="#12241d" stroke-width="2.1" stroke-linecap="round"/>
+        <circle cx="21" cy="8" r="2.4" fill="#12241d"/>
+        <path d="M10 15q6 2 10-2" fill="none" stroke="#12241d" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="face-dormilon" viewBox="0 0 30 22">
+        <path d="M6 8h6M18 8h6" fill="none" stroke="#12241d" stroke-width="2.1" stroke-linecap="round"/>
+        <circle cx="15" cy="15" r="2.4" fill="none" stroke="#12241d" stroke-width="1.8"/>
+    </symbol>
+
+</defs></svg>

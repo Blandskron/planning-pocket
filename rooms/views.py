@@ -64,10 +64,11 @@ def room_detail(request, public_id):
             if request.method == 'POST':
                 form = GuestJoinForm(request.POST)
                 if form.is_valid():
-                    display_name = form.cleaned_data['display_name']
                     participant = Participant.objects.create(
                         room=room,
-                        display_name=display_name
+                        display_name=form.cleaned_data['display_name'],
+                        pet=form.cleaned_data.get('pet') or '',
+                        color_index=form.cleaned_data.get('color_index'),
                     )
                     # Save token in session
                     guest_tokens[str(room.id)] = participant.guest_token
@@ -77,7 +78,7 @@ def room_detail(request, public_id):
                 form = GuestJoinForm()
             return render(request, 'rooms/join_guest.html', {'room': room, 'form': form})
 
-    participants = room.participants.all()
+    participants = room.participants.order_by('joined_at', 'id')
     deck_cards = room.deck.split(',')
     issues = room.issues.all().order_by('created_at')
 
