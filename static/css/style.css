@@ -520,6 +520,38 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .result-bar span { color: var(--text-soft); font-family: var(--font-mono); font-size: 0.68rem; }
 .result-bar small { color: var(--muted); font-size: 0.58rem; font-weight: 750; }
 
+/* The recess: people leave their seats while the table waits for the last vote.
+   The seats stay visible underneath, dimmed, so nobody loses track of who has
+   voted; the recess is a layer over the meeting, never a replacement for it. */
+.recess-layer { position: absolute; inset: 0; z-index: var(--z-pets); display: none; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--felt-deep) 55%, transparent); }
+.is-recess .recess-layer { display: block; }
+.is-recess .table-seats { opacity: 0.34; transition: opacity 0.3s; }
+.is-recess .table-marks { opacity: 0.5; }
+.recess-floor { position: absolute; inset: 0; border-radius: inherit; cursor: pointer;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0 1px, transparent 1px 46px); }
+.recess-note { position: absolute; top: 0.6rem; left: 50%; padding: 0.3rem 0.7rem; border-radius: var(--radius-pill); color: var(--felt-text); background: rgba(6, 20, 17, 0.55); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; transform: translateX(-50%); pointer-events: none; }
+
+.recess-spot { position: absolute; width: 68px; margin: -30px 0 0 -34px; display: grid; justify-items: center; gap: 0.2rem; pointer-events: none; }
+.recess-spot .spot-glyph { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid rgba(247, 241, 225, 0.22); border-radius: 11px; color: #e8cf9a; background: rgba(6, 20, 17, 0.55); transition: border-color 0.2s, background 0.2s; }
+.recess-spot .spot-glyph svg { width: 22px; height: 22px; }
+.recess-spot b { color: var(--felt-text); font-size: 0.56rem; font-weight: 820; letter-spacing: 0.08em; text-transform: uppercase; }
+.recess-spot.is-near .spot-glyph { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 26%, transparent); }
+.recess-spot.is-near b { color: #f6d9a4; }
+
+.recess-walker { position: absolute; width: 40px; margin: -20px 0 0 -20px; display: grid; justify-items: center; gap: 2px; }
+.walker-body { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid rgba(4, 16, 13, 0.45); border-radius: 50%; background: var(--seat-hue, var(--seat-hue-0)); box-shadow: 0 5px 11px rgba(0, 0, 0, 0.36); }
+.walker-body svg { width: 22px; height: auto; }
+.recess-walker.is-walking .walker-body { animation: walker-step 0.34s ease-in-out infinite; }
+@keyframes walker-step { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
+.recess-walker b { padding: 0 5px; border: 1px solid rgba(247, 241, 225, 0.14); border-radius: 4px; color: #eae4d4; background: rgba(4, 16, 13, 0.62); font-size: 0.6rem; font-weight: 700; white-space: nowrap; }
+.recess-walker.is-me b { color: #f6d9a4; border-color: rgba(217, 171, 88, 0.5); }
+.walker-mug { position: absolute; top: -5px; right: -8px; width: 15px; height: 15px; color: #f6d9a4; opacity: 0; transition: opacity 0.25s; }
+.recess-walker.has-coffee .walker-mug { opacity: 1; }
+.walker-wave { position: absolute; bottom: 100%; left: 50%; padding: 2px 7px; border-radius: 8px; color: var(--card-ink); background: var(--card-face); font-size: 0.62rem; font-weight: 750; white-space: nowrap; opacity: 0; transition: opacity 0.2s; transform: translate(-50%, -6px); pointer-events: none; }
+.recess-walker.is-greeting .walker-wave { opacity: 1; }
+
 /* The deck reads as a hand of cards: fanned, overlapping, anchored to the bottom edge. */
 .room-deck-wrap { grid-column: 2; padding: 0.9rem 1rem 1.05rem; }
 .deck-heading { justify-content: space-between; gap: 1rem; margin-bottom: 0.65rem; }
@@ -605,6 +637,9 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
   .round-heading p { font-size: 0.76rem; }
   .table-stage { min-height: 0; padding: 0.85rem 0 0.35rem; }
   .table-oval, .table-glow { display: none; }
+  /* No felt to walk on once the ring collapses into a strip. */
+  .is-recess .recess-layer { display: none; }
+  .is-recess .table-seats, .is-recess .table-marks { opacity: 1; }
   .table-marks { position: static; inset: auto; padding-bottom: 0.7rem; }
   .table-count, .table-tally { color: var(--muted); }
   .table-pile span { border-color: var(--border); }

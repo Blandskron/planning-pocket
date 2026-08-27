@@ -51,3 +51,9 @@ La comunicación WebSocket transmitirá principalmente actualizaciones de estado
   `{"thrower_id": 1, "target_id": 2, "item": "tomate"}`. Es cosmético y deliberadamente
   estrecho: no transporta información de voto (ver ADR-005).
 - `room.playful_changed`: El facilitador activó o desactivó la capa de juego para la sala.
+- `player.moved`: Posición de alguien durante el recreo, en coordenadas normalizadas
+  `{"participant_id": 1, "x": 0.25, "y": 0.75}`. **Efímero**: se reenvía y no se persiste.
+  El servidor descarta en silencio lo que llegue más rápido que un movimiento cada 110 ms,
+  lo rechaza si el recreo está cerrado, y nunca lo encola.
+- `room.recess_changed`: Se abrió o cerró el recreo. Al revelar se emite antes del
+  `room.revealed`, y sólo si había un recreo abierto.

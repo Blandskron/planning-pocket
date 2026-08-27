@@ -146,6 +146,29 @@ Las reglas completas están en `docs/DECISIONS.md` ADR-005; lo relevante para el
 - La mascota tiene un cuarto estado, asustada, que sólo existe aquí porque es aquí donde está el
   impacto que lo dispara.
 
+## Modo recreo
+
+Mientras la mesa espera el último voto, el facilitador puede abrir un recreo: las personas se
+levantan de su asiento y caminan por la sala.
+
+- **Es una capa sobre la reunión, nunca un reemplazo.** Los asientos siguen visibles debajo,
+  atenuados al 34 %, así que nadie pierde de vista quién ha votado. La mano de cartas queda fuera de
+  la capa y nunca se tapa: se puede votar caminando.
+- Cuatro puntos de interés en las esquinas del paño: cafetera, dispensador, pizarra y ventana.
+- Se mueve haciendo clic en el suelo o con las flechas.
+- Estar en la cafetera es una **señal social**, no un estado que el servidor imponga: el avatar
+  carga una taza y el estado del asiento pasa a decir `En pausa`, en texto como todos los demás
+  estados. La persona sigue en la ronda y su voto sigue contando.
+- Al acercarse a alguien aparece un saludo breve.
+- **El recreo se cierra solo al revelar.** El servidor lo cierra en `reveal_round` y avisa antes de
+  emitir el reveal, así que los avatares caminan de vuelta a su asiento mientras corre la cuenta
+  atrás y la coreografía arranca desde una mesa sentada.
+- En móvil no se ofrece: sin anillo elíptico no hay paño por el que caminar.
+
+Las posiciones son **efímeras**: coordenadas normalizadas de 0 a 1 que el servidor reenvía sin
+guardar nada. Un cliente que se retrasa pierde la posición intermedia en lugar de acumular cola, y
+el servidor descarta en silencio lo que llegue más rápido que un movimiento cada 110 ms.
+
 ## Responsive y accesibilidad
 
 - Escritorio y tableta: los participantes se distribuyen sobre el anillo elíptico.

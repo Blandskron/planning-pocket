@@ -1,6 +1,7 @@
 """WebSocket protocol for the collaborative Planning Poker room."""
 
 import json
+import time
 from json import JSONDecodeError
 
 from channels.db import database_sync_to_async
@@ -18,6 +19,7 @@ from .services import (
     reset_round,
     reveal_round,
     set_playful_actions,
+    set_recess,
     throw_item,
 )
 from .services import activate_issue as activate_room_issue
@@ -25,6 +27,11 @@ from .services import activate_issue as activate_room_issue
 
 class PokerConsumer(AsyncWebsocketConsumer):
     """Accepts validated room actions and broadcasts server-authoritative state."""
+
+    # A walking avatar sends roughly eight positions a second. Anything faster is
+    # dropped rather than queued, so a client that falls behind loses the
+    # intermediate position instead of building a backlog for everyone else.
+    MOVE_MIN_INTERVAL = 0.11
 
     async def connect(self):
         self.public_id = self.scope["url_route"]["kwargs"]["public_id"]
@@ -34,6 +41,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.close(code=4403)
             return
 
+        self.last_move_at = 0.0
+        self.recess_open = False
         self.was_offline = await self.participant_connected()
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
@@ -91,6 +100,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "participant.remind",
             "player.throw",
             "room.set_playful",
+            "player.move",
+            "room.set_recess",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
             return
@@ -111,6 +122,10 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.handle_throw(data)
         elif event_type == "room.set_playful":
             await self.handle_set_playful(data)
+        elif event_type == "player.move":
+            await self.handle_move(data)
+        elif event_type == "room.set_recess":
+            await self.handle_set_recess(data)
 
     async def handle_vote(self, data):
         value = data.get("value")
@@ -135,12 +150,19 @@ class PokerConsumer(AsyncWebsocketConsumer):
 
     async def handle_reveal(self):
         try:
-            results = await self.reveal_room()
+            results, recess_was_open = await self.reveal_room()
         except RoomActionError as error:
             await self.send_error("invalid_action", str(error))
             return
 
         participants = await self.get_all_participants_state()
+        # Only when there was something to close, and before the reveal itself, so
+        # clients seat everyone again while the countdown runs.
+        if recess_was_open:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {"type": "room.recess_changed", "recess_open": False},
+            )
         await self.channel_layer.group_send(
             self.room_group_name,
             {"type": "room.revealed", "participants": participants, "results": results},
@@ -253,11 +275,59 @@ class PokerConsumer(AsyncWebsocketConsumer):
             {"type": "room.playful_changed", "allow_playful_actions": allowed},
         )
 
+    async def handle_move(self, data):
+        """Relay a position during the recess. Nothing here touches the database."""
+        if not self.recess_open:
+            return
+
+        x = data.get("x")
+        y = data.get("y")
+        if isinstance(x, bool) or isinstance(y, bool):
+            return
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            return
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            return
+
+        now = time.monotonic()
+        if now - self.last_move_at < self.MOVE_MIN_INTERVAL:
+            return
+        self.last_move_at = now
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "player.moved",
+                "participant_id": self.participant.id,
+                "x": float(x),
+                "y": float(y),
+            },
+        )
+
+    async def handle_set_recess(self, data):
+        enabled = data.get("enabled")
+        if not isinstance(enabled, bool):
+            await self.send_error("invalid_payload", "The switch must be true or false.")
+            return
+
+        try:
+            is_open = await self.update_recess(enabled)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "room.recess_changed", "recess_open": is_open},
+        )
+
     async def send_error(self, code, message):
         await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
 
     async def send_room_state(self):
         state = await self.get_room_state()
+        # Cached so handle_move can reject positions without a query per frame.
+        self.recess_open = state["room"]["recess_open"]
         await self.send(text_data=json.dumps({"type": "room.state", "payload": state}))
 
     @database_sync_to_async
@@ -305,8 +375,9 @@ class PokerConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def reveal_room(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
+        recess_was_open = room.recess_open
         _, results = reveal_round(room.id, self.scope.get("user"))
-        return results
+        return results, recess_was_open
 
     @database_sync_to_async
     def reset_room(self):
@@ -344,6 +415,12 @@ class PokerConsumer(AsyncWebsocketConsumer):
         return room.allow_playful_actions
 
     @database_sync_to_async
+    def update_recess(self, enabled):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        room = set_recess(room.id, enabled, self.scope.get("user"))
+        return room.recess_open
+
+    @database_sync_to_async
     def get_all_participants_state(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
         return [
@@ -364,6 +441,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
                 "deck": room.deck.split(","),
                 "is_facilitator": is_facilitator,
                 "allow_playful_actions": room.allow_playful_actions,
+                "recess_open": room.recess_open,
             },
             "active_issue": self.serialize_issue(room.active_issue) if room.active_issue else None,
             "participants": [
@@ -456,6 +534,26 @@ class PokerConsumer(AsyncWebsocketConsumer):
                     "type": "room.playful_changed",
                     "allow_playful_actions": event["allow_playful_actions"],
                 }
+            )
+        )
+
+    async def player_moved(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "player.moved",
+                    "participant_id": event["participant_id"],
+                    "x": event["x"],
+                    "y": event["y"],
+                }
+            )
+        )
+
+    async def room_recess_changed(self, event):
+        self.recess_open = event["recess_open"]
+        await self.send(
+            text_data=json.dumps(
+                {"type": "room.recess_changed", "recess_open": event["recess_open"]}
             )
         )
 

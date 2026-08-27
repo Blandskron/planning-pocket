@@ -13,6 +13,7 @@ from rooms.services import (
     reset_round,
     reveal_round,
     set_playful_actions,
+    set_recess,
     throw_item,
 )
 
@@ -168,3 +169,60 @@ class TestPlayfulSwitch:
         cast_vote(self.room.id, self.bob.id, '5')
         self.bob.refresh_from_db()
         assert self.bob.current_vote == '5'
+
+
+@pytest.mark.django_db
+class TestRecess:
+    @pytest.fixture(autouse=True)
+    def setup_data(self):
+        self.owner = User.objects.create_user(username='owner', password='pwd')
+        self.stranger = User.objects.create_user(username='stranger', password='pwd')
+        self.room = PokerRoom.objects.create(owner=self.owner, name='Table')
+        self.alice = Participant.objects.create(
+            room=self.room, user=self.owner, display_name='Alice', connection_count=1
+        )
+        self.bob = Participant.objects.create(
+            room=self.room, display_name='Bob', connection_count=1
+        )
+
+    def test_the_recess_starts_closed(self):
+        assert self.room.recess_open is False
+
+    def test_the_facilitator_opens_and_closes_it(self):
+        assert set_recess(self.room.id, True, self.owner).recess_open is True
+        assert set_recess(self.room.id, False, self.owner).recess_open is False
+
+    def test_only_the_facilitator_decides(self):
+        with pytest.raises(RoomActionError, match='Only the facilitator'):
+            set_recess(self.room.id, True, self.stranger)
+
+    def test_it_cannot_be_opened_once_the_votes_are_out(self):
+        cast_vote(self.room.id, self.bob.id, '5')
+        reveal_round(self.room.id, self.owner)
+        with pytest.raises(RoomActionError, match='while voting is open'):
+            set_recess(self.room.id, True, self.owner)
+
+    def test_revealing_closes_it_by_itself(self):
+        """The recess fills the wait for the last vote; the discussion replaces it."""
+        set_recess(self.room.id, True, self.owner)
+        cast_vote(self.room.id, self.bob.id, '5')
+        reveal_round(self.room.id, self.owner)
+        self.room.refresh_from_db()
+        assert self.room.recess_open is False
+
+    def test_it_can_always_be_closed_even_after_a_reveal(self):
+        set_recess(self.room.id, True, self.owner)
+        self.room.voting_status = 'revealed'
+        self.room.save(update_fields=['voting_status'])
+        assert set_recess(self.room.id, False, self.owner).recess_open is False
+
+    def test_voting_keeps_working_during_the_recess(self):
+        set_recess(self.room.id, True, self.owner)
+        cast_vote(self.room.id, self.bob.id, '13')
+        self.bob.refresh_from_db()
+        assert self.bob.current_vote == '13'
+
+    def test_a_closed_room_refuses_the_recess(self):
+        self.room.close_room()
+        with pytest.raises(RoomActionError, match='closed'):
+            set_recess(self.room.id, True, self.owner)

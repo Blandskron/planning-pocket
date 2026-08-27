@@ -1,19 +1,5 @@
 # Trabajo Pendiente
 
-## Fase 4 — Modo recreo
-
-- Disponible sólo en fase de votación y sólo si el facilitador lo habilita.
-- La mesa se aleja y aparece el suelo con cuatro puntos de interés: cafetera, dispensador,
-  pizarra, ventana.
-- `player.move {x,y}` a 8 Hz, efímero: nunca se persiste y se descarta al revelar. Bajo presión se
-  descarta la posición intermedia, no se encola.
-- Proximidad: gesto corto al acercarse a alguien; en la cafetera el avatar carga una taza y queda
-  marcado «en pausa» como señal social, no como estado que el servidor imponga.
-- Al revelar, todos caminan de vuelta a su asiento en 700 ms y luego arranca la coreografía de
-  reveal existente.
-- Votar sigue siendo posible mientras se camina: la mano de cartas permanece anclada.
-- Requiere Redis en producción (ADR-002). Es la única parte del plan con coste de infraestructura.
-
 ## Fase 5 — Sonido y remate
 
 - Cinco tonos sintetizados con WebAudio (apoyar carta, giro, lanzamiento, impacto, acorde de

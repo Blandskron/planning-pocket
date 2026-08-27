@@ -99,7 +99,10 @@ def reveal_round(room_id, actor):
     if room.voting_status != "voting":
         raise RoomActionError("This round has already been revealed.")
     room.voting_status = "revealed"
-    room.save(update_fields=["voting_status"])
+    # The recess exists to fill the wait for the last vote. Once the cards are on
+    # the table the discussion is the point, so it closes itself.
+    room.recess_open = False
+    room.save(update_fields=["voting_status", "recess_open"])
     return room, calculate_results(room)
 
 
@@ -224,3 +227,22 @@ def throw_item(room_id, thrower_id, target_id, item):
     thrower.throws_this_round += 1
     thrower.save(update_fields=["last_throw_at", "throws_this_round"])
     return thrower, target
+
+
+@transaction.atomic
+def set_recess(room_id, enabled, actor):
+    """Open or close the recess, where people can leave their seats.
+
+    Only the facilitator decides, and it can only be opened while voting is still
+    open: once the votes are revealed the table should be talking, not wandering.
+    """
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+    _require_facilitator(room, actor)
+
+    if enabled and room.voting_status != "voting":
+        raise RoomActionError("The recess is only available while voting is open.")
+
+    room.recess_open = bool(enabled)
+    room.save(update_fields=["recess_open"])
+    return room

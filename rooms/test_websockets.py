@@ -296,3 +296,90 @@ async def test_only_the_facilitator_can_switch_the_playful_layer():
 
     await guest_socket.disconnect()
     await owner_socket.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_positions_are_only_relayed_while_the_recess_is_open():
+    """Positions are ephemeral: relayed, never stored, and refused when closed."""
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    walker = await sync_to_async(Participant.objects.create)(
+        room=room, user=owner, display_name="Walker"
+    )
+
+    communicator, state = await connect_participant(room, owner)
+    assert state["room"]["recess_open"] is False
+
+    # closed: dropped in silence, not an error, so a stale client cannot spam
+    await communicator.send_json_to({"type": "player.move", "x": 0.5, "y": 0.5})
+    await communicator.send_json_to({"type": "room.set_recess", "enabled": True})
+    event = await wait_for(communicator, "room.recess_changed")
+    assert event["recess_open"] is True
+
+    await communicator.send_json_to({"type": "player.move", "x": 0.25, "y": 0.75})
+    moved = await wait_for(communicator, "player.moved")
+    assert moved == {
+        "type": "player.moved",
+        "participant_id": walker.id,
+        "x": 0.25,
+        "y": 0.75,
+    }
+
+    # nothing about a position is persisted
+    await sync_to_async(walker.refresh_from_db)()
+    assert not hasattr(walker, "x")
+
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_positions_outside_the_floor_are_dropped():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(
+        owner=owner, name="WS room", recess_open=True
+    )
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Walker")
+
+    communicator, state = await connect_participant(room, owner)
+    assert state["room"]["recess_open"] is True
+
+    for payload in (
+        {"x": 1.5, "y": 0.5},
+        {"x": -0.2, "y": 0.5},
+        {"x": "0.5", "y": 0.5},
+        {"x": True, "y": 0.5},
+        {"x": 0.5},
+    ):
+        await communicator.send_json_to({"type": "player.move", **payload})
+
+    # a good one still gets through, which proves the socket was never poisoned
+    await communicator.send_json_to({"type": "player.move", "x": 0.4, "y": 0.6})
+    moved = await wait_for(communicator, "player.moved")
+    assert (moved["x"], moved["y"]) == (0.4, 0.6)
+
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_revealing_tells_everyone_the_recess_is_over():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(
+        owner=owner, name="WS room", recess_open=True
+    )
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+
+    communicator, _ = await connect_participant(room, owner)
+    await communicator.send_json_to({"type": "room.reveal"})
+
+    closed = await wait_for(communicator, "room.recess_changed")
+    assert closed["recess_open"] is False
+    revealed = await wait_for(communicator, "room.revealed")
+    assert revealed["type"] == "room.revealed"
+
+    await sync_to_async(room.refresh_from_db)()
+    assert room.recess_open is False
+
+    await communicator.disconnect()

@@ -17,6 +17,9 @@
                 <button class="room-switch" type="button" id="playful-switch" aria-pressed="{{ room.allow_playful_actions|yesno:'true,false' }}">
                     <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Juego</span>
                 </button>
+                <button class="room-switch" type="button" id="recess-switch" aria-pressed="{{ room.recess_open|yesno:'true,false' }}">
+                    <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Recreo</span>
+                </button>
             {% endif %}
             <button class="room-switch" type="button" id="effects-switch" aria-pressed="true">
                 <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Efectos</span>
@@ -81,6 +84,10 @@
                     <span class="table-count" id="table-count" aria-hidden="true"></span>
                     <span class="table-pile" id="table-pile" aria-hidden="true"></span>
                     <span class="table-tally" id="table-tally" aria-live="polite"></span>
+                </div>
+                <div class="recess-layer" id="recess-layer">
+                    <div class="recess-floor" id="recess-floor" role="application" tabindex="-1" aria-label="Recreo: usa las flechas para moverte por la sala"></div>
+                    <span class="recess-note">Recreo · la votación sigue abierta</span>
                 </div>
                 <div class="table-seats" id="participants-list" aria-live="polite">
                     {% for p in participants %}{% with ident=p.identity %}
@@ -168,6 +175,18 @@ let selectedItem = '{{ throwables.0.0 }}';
    room-wide one: either being off is enough to stop the effects here. */
 let effectsOn = true;
 try { effectsOn = localStorage.getItem('planning-pocket-effects') !== 'off'; } catch (_) {}
+let recessOpen = {{ room.recess_open|yesno:"true,false" }};
+/* Positions live only here, for as long as the recess lasts. Nothing is stored on
+   the server and nothing survives a reveal. */
+const walkers = new Map();
+let walkerFrame = null;
+let lastMoveSent = 0;
+const RECESS_SPOTS = [
+    {slug: 'cafetera', label: 'Cafetera', x: 0.11, y: 0.2, coffee: true},
+    {slug: 'agua', label: 'Dispensador', x: 0.89, y: 0.2},
+    {slug: 'pizarra', label: 'Pizarra', x: 0.11, y: 0.84},
+    {slug: 'ventana', label: 'Ventana', x: 0.89, y: 0.84}
+];
 const ITEM_LABELS = {
 {% for slug, label in throwables %}    '{{ slug }}': '{{ label }}',
 {% endfor %}};
@@ -264,7 +283,16 @@ function layoutSeats() {
 let relayoutTimer = null;
 window.addEventListener('resize', () => {
     window.clearTimeout(relayoutTimer);
-    relayoutTimer = window.setTimeout(layoutSeats, 120);
+    relayoutTimer = window.setTimeout(() => {
+        layoutSeats();
+        /* Seats moved, so the walkers' way home moved with them. */
+        if (walkers.size) {
+            seatList().forEach(seat => {
+                const walker = walkers.get(Number(seat.dataset.participantId));
+                if (walker) walker.home = seatNormalised(seat);
+            });
+        }
+    }, 120);
 });
 
 /* The felt centre reports the round instead of showing a static monogram. */
@@ -628,6 +656,181 @@ function setEffects(on) {
     button.title = on ? 'Desactivar efectos en tu pantalla' : 'Activar efectos en tu pantalla';
 }
 
+/* ---------------- recess ----------------
+   A walker per person over the felt. Coordinates are normalised 0..1 so screens of
+   different sizes agree, positions are relayed and never stored, and the layer
+   closes itself on reveal. Voting keeps working throughout: the hand of cards is
+   outside this layer and never covered. */
+
+function recessBox() {
+    return document.getElementById('recess-layer').getBoundingClientRect();
+}
+
+function seatNormalised(seat) {
+    const stage = recessBox();
+    const box = seat.getBoundingClientRect();
+    if (!stage.width || !stage.height) return {x: 0.5, y: 0.5};
+    return {
+        x: Math.min(0.95, Math.max(0.05, (box.left - stage.left + box.width / 2) / stage.width)),
+        y: Math.min(0.9, Math.max(0.1, (box.top - stage.top + box.height / 2) / stage.height))
+    };
+}
+
+function buildRecess() {
+    const layer = document.getElementById('recess-layer');
+    layer.querySelectorAll('.recess-spot, .recess-walker').forEach(node => node.remove());
+    walkers.clear();
+
+    RECESS_SPOTS.forEach(spot => {
+        const node = document.createElement('div');
+        node.className = 'recess-spot';
+        node.dataset.spot = spot.slug;
+        node.style.left = (spot.x * 100) + '%';
+        node.style.top = (spot.y * 100) + '%';
+        node.innerHTML = '<span class="spot-glyph" aria-hidden="true"><svg viewBox="0 0 24 24">' +
+            '<use href="#spot-' + spot.slug + '"></use></svg></span><b>' + spot.label + '</b>';
+        layer.append(node);
+    });
+
+    seatList().forEach(seat => {
+        const id = Number(seat.dataset.participantId);
+        const home = seatNormalised(seat);
+        const node = document.createElement('div');
+        const isMe = id === myParticipantId;
+        node.className = 'recess-walker' + (isMe ? ' is-me' : '');
+        node.style.setProperty('--seat-hue', seat.style.getPropertyValue('--seat-hue'));
+        const faceHref = seat.querySelector('.seat-avatar use').getAttribute('href');
+        node.innerHTML =
+            '<span class="walker-body" aria-hidden="true">' +
+                '<svg viewBox="0 0 30 22"><use href="' + faceHref + '"></use></svg>' +
+                '<svg class="walker-mug" viewBox="0 0 24 24"><use href="#walker-mug"></use></svg>' +
+                '<span class="walker-wave">¡Hola!</span>' +
+            '</span><b>' + seat.querySelector('.seat-name').textContent.replace('Tú', '').trim() + '</b>';
+        layer.append(node);
+        walkers.set(id, {node: node, home: home, x: home.x, y: home.y, tx: home.x, ty: home.y, isMe: isMe});
+    });
+    drawWalkers();
+}
+
+function drawWalkers() {
+    walkers.forEach(walker => {
+        walker.node.style.left = (walker.x * 100) + '%';
+        walker.node.style.top = (walker.y * 100) + '%';
+    });
+}
+
+/* One shared loop for everyone: my own walker follows where I clicked, everyone
+   else follows the last position their client relayed. */
+function stepRecess() {
+    let moving = false;
+    walkers.forEach(walker => {
+        const dx = walker.tx - walker.x;
+        const dy = walker.ty - walker.y;
+        const distance = Math.hypot(dx, dy);
+        const isWalking = distance > 0.004;
+        if (isWalking) {
+            const speed = Math.min(0.014, distance);
+            walker.x += (dx / distance) * speed;
+            walker.y += (dy / distance) * speed;
+            moving = true;
+        }
+        walker.node.classList.toggle('is-walking', isWalking && !reduceMotion);
+    });
+    drawWalkers();
+    updateProximity();
+    if (recessOpen || moving) {
+        walkerFrame = requestAnimationFrame(stepRecess);
+    } else {
+        walkerFrame = null;
+        closeRecessLayer();
+    }
+}
+
+function updateProximity() {
+    const me = walkers.get(myParticipantId);
+    if (!me) return;
+    let nearCoffee = false;
+    RECESS_SPOTS.forEach(spot => {
+        const node = document.querySelector('.recess-spot[data-spot="' + spot.slug + '"]');
+        if (!node) return;
+        const near = Math.hypot(me.x - spot.x, me.y - spot.y) < 0.09;
+        node.classList.toggle('is-near', near);
+        if (near && spot.coffee) nearCoffee = true;
+    });
+    me.node.classList.toggle('has-coffee', nearCoffee);
+
+    /* Standing at the coffee machine is a social signal, written as text like every
+       other state. The server never treats it as one: you are still in the round. */
+    const state = document.getElementById('state-status-' + myParticipantId);
+    if (state) {
+        if (nearCoffee && state.textContent !== 'En pausa') {
+            state.dataset.beforeRecess = state.dataset.beforeRecess || state.textContent;
+            state.textContent = 'En pausa';
+        } else if (!nearCoffee && state.dataset.beforeRecess) {
+            state.textContent = state.dataset.beforeRecess;
+            delete state.dataset.beforeRecess;
+        }
+    }
+
+    walkers.forEach((walker, id) => {
+        if (id === myParticipantId) return;
+        walker.node.classList.toggle('is-greeting', Math.hypot(me.x - walker.x, me.y - walker.y) < 0.1);
+    });
+}
+
+function moveMeTo(x, y) {
+    const me = walkers.get(myParticipantId);
+    if (!me || !recessOpen) return;
+    me.tx = Math.min(0.96, Math.max(0.04, x));
+    me.ty = Math.min(0.92, Math.max(0.08, y));
+    /* Eight a second is plenty for a walking avatar, and the server drops anything
+       faster rather than queueing it. */
+    const now = Date.now();
+    if (now - lastMoveSent >= 125) {
+        lastMoveSent = now;
+        send('player.move', {x: Number(me.tx.toFixed(4)), y: Number(me.ty.toFixed(4))});
+    }
+}
+
+function openRecess() {
+    const stage = document.getElementById('table-stage');
+    stage.classList.add('is-recess');
+    buildRecess();
+    if (!walkerFrame) walkerFrame = requestAnimationFrame(stepRecess);
+}
+
+/* Everyone walks home first; the layer only disappears once they have arrived, so
+   the reveal choreography starts from a table that is actually seated. */
+function closeRecess() {
+    if (!document.getElementById('table-stage').classList.contains('is-recess')) return;
+    walkers.forEach(walker => { walker.tx = walker.home.x; walker.ty = walker.home.y; });
+    const state = document.getElementById('state-status-' + myParticipantId);
+    if (state && state.dataset.beforeRecess) {
+        state.textContent = state.dataset.beforeRecess;
+        delete state.dataset.beforeRecess;
+    }
+    if (reduceMotion || !walkerFrame) { closeRecessLayer(); return; }
+    /* The walk home is driven by the frame clock, so it also gets a deadline: a
+       throttled tab must not be left with the recess layer over the table. */
+    window.setTimeout(closeRecessLayer, 1400);
+}
+
+function closeRecessLayer() {
+    const stage = document.getElementById('table-stage');
+    stage.classList.remove('is-recess');
+    const layer = document.getElementById('recess-layer');
+    layer.querySelectorAll('.recess-spot, .recess-walker').forEach(node => node.remove());
+    walkers.clear();
+    if (walkerFrame) { cancelAnimationFrame(walkerFrame); walkerFrame = null; }
+}
+
+function applyRecess(isOpen) {
+    recessOpen = isOpen;
+    const switcher = document.getElementById('recess-switch');
+    if (switcher) switcher.setAttribute('aria-pressed', String(isOpen));
+    if (isOpen) openRecess(); else closeRecess();
+}
+
 function countdown(done) {
     const counter = document.getElementById('table-count');
     let remaining = 3;
@@ -687,6 +890,8 @@ function connect() {
             votingStatus = data.payload.room.voting_status;
             currentIssue = data.payload.active_issue;
             allowPlayful = data.payload.room.allow_playful_actions;
+            const recessWas = recessOpen;
+            recessOpen = data.payload.room.recess_open;
             data.payload.participants.forEach(renderParticipant);
             layoutSeats();
             myCurrentVote = data.payload.your_vote;
@@ -695,6 +900,7 @@ function connect() {
             setResults(data.payload.results, data.payload.participants);
             updateControls(data.payload.active_issue);
             syncThrowTargets();
+            if (recessOpen !== recessWas || (recessOpen && !walkers.size)) applyRecess(recessOpen);
         } else if (data.type === 'participant.joined') {
             renderParticipant(data.participant);
         } else if (data.type === 'participant.left') {
@@ -706,6 +912,14 @@ function connect() {
         } else if (data.type === 'participant.reminded') {
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) { seat.classList.remove('is-reminded'); void seat.offsetWidth; seat.classList.add('is-reminded'); }
+        } else if (data.type === 'player.moved') {
+            const walker = walkers.get(data.participant_id);
+            if (walker && data.participant_id !== myParticipantId) {
+                walker.tx = data.x;
+                walker.ty = data.y;
+            }
+        } else if (data.type === 'room.recess_changed') {
+            applyRecess(data.recess_open);
         } else if (data.type === 'player.hit') {
             playThrow(data.thrower_id, data.target_id, data.item);
         } else if (data.type === 'room.playful_changed') {
@@ -788,6 +1002,28 @@ document.getElementById('throw-tray').addEventListener('click', event => {
 });
 
 document.getElementById('effects-switch').addEventListener('click', () => setEffects(!effectsOn));
+
+document.getElementById('recess-floor').addEventListener('click', event => {
+    const box = recessBox();
+    if (!box.width || !box.height) return;
+    moveMeTo((event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height);
+    document.getElementById('recess-floor').focus();
+});
+
+document.getElementById('recess-floor').addEventListener('keydown', event => {
+    const nudge = {ArrowLeft: [-0.06, 0], ArrowRight: [0.06, 0], ArrowUp: [0, -0.08], ArrowDown: [0, 0.08]}[event.key];
+    if (!nudge) return;
+    const me = walkers.get(myParticipantId);
+    if (!me) return;
+    event.preventDefault();
+    moveMeTo(me.tx + nudge[0], me.ty + nudge[1]);
+});
+
+const recessSwitch = document.getElementById('recess-switch');
+if (recessSwitch) {
+    recessSwitch.addEventListener('click', () => send('room.set_recess', {enabled: !recessOpen}));
+    recessSwitch.title = 'Abrir o cerrar el recreo para toda la sala';
+}
 
 const playfulSwitch = document.getElementById('playful-switch');
 if (playfulSwitch) {

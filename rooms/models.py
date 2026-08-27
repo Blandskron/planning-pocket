@@ -46,6 +46,13 @@ class PokerRoom(models.Model):
         default=True,
         help_text="Facilitator switch for the playful layer across the whole room."
     )
+    recess_open = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether people can leave their seats and walk around. Only meaningful "
+            "while voting; closed automatically on reveal. Positions are never stored."
+        )
+    )
 
     active_issue = models.ForeignKey(
         'Issue', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
