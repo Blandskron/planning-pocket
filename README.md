@@ -54,6 +54,14 @@ python -m ruff check .
 python manage.py check
 ```
 
+Browser tests live behind the `e2e` marker and run separately, because they need an event loop
+daphne does not install and an async-safety escape hatch the rest of the suite is better off
+without. See `docs/TESTING.md`.
+```powershell
+python -m playwright install chromium   # once
+$env:DJANGO_ALLOW_ASYNC_UNSAFE = "true"; python -m pytest -m e2e
+```
+
 ## Production Deployment
 
 This project includes a `Dockerfile` and `docker-compose.yml` pre-configured for a production-like environment with PostgreSQL and Redis.

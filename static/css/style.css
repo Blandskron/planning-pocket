@@ -658,7 +658,9 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
   .room-shell { width: min(100% - 1rem, 1540px); padding-top: 0.65rem; }
   .room-topbar { flex-wrap: wrap; }
   .room-brand { flex: 1 1 100%; }
-  .room-top-actions { width: 100%; justify-content: space-between; }
+  /* Six controls live here now, not two: without wrapping the row runs a few
+     pixels past a 390px phone and takes the whole page sideways with it. */
+  .room-top-actions { width: 100%; flex-wrap: wrap; row-gap: 0.5rem; justify-content: space-between; }
   .poker-table-card { min-height: 0; overflow: visible; }
   .round-heading { padding: 1.25rem 0.75rem 0.35rem; }
   .round-heading p { font-size: 0.76rem; }
@@ -670,7 +672,10 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
   .table-marks { position: static; inset: auto; padding-bottom: 0.7rem; }
   .table-count, .table-tally { color: var(--muted); }
   .table-pile span { border-color: var(--border); }
-  .table-seats { position: static; display: flex; gap: 0.75rem; width: max-content; min-width: 100%; padding: 0 0.7rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  /* width:100%, never max-content: a scroll container sized to its own content has
+     nothing to scroll, so it pushes the page sideways instead. The flex items
+     overflow it and it scrolls them, the same way the deck and the story list do. */
+  .table-seats { position: static; display: flex; gap: 0.75rem; width: 100%; padding: 0 0.7rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
   /* relative, not static: the reminder overlay still anchors to its own seat */
   .table-seat { position: relative; left: auto; top: auto; width: 104px; flex: 0 0 104px; transform: none; }
   .participant-card { width: 52px; height: 72px; }
@@ -692,7 +697,10 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
   .deck-heading > span { max-width: 190px; font-size: 0.63rem; }
   .deck { justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; padding: 1.1rem 0.2rem 0.85rem; scrollbar-width: thin; }
   .poker-card { --card-fan: 2.2deg; flex-basis: 52px; width: 52px; height: 74px; }
-  .character-sheet { right: auto; left: 0; }
+  /* No popover on a phone: a 19rem sheet anchored to a button near the right edge
+     cannot fit in 390px however it is anchored, so it opens in flow on its own row. */
+  .character-panel { flex: 1 1 100%; }
+  .character-sheet { position: static; width: auto; margin-top: 0.5rem; }
   .room-issue-list { display: flex; overflow-x: auto; padding-bottom: 0.4rem; }
   .room-issue { flex: 0 0 min(82vw, 260px); }
   .decision-actions { flex-direction: column-reverse; }
