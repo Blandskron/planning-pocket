@@ -119,13 +119,32 @@ El promedio se redondea en el servidor (`calculate_results`), porque el valor se
 
 ## Recordatorio a participantes pendientes
 
-Hoy «atacar» se traduce como un recordatorio amable del facilitador. Sólo el facilitador lo puede
-activar, únicamente para participantes conectados que aún no votan, con un máximo de una vez cada
-20 segundos por participante. La señal es una breve onda de acento; no envía mensajes, no expone
-votos y respeta `prefers-reduced-motion`.
+El facilitador puede enviar un recordatorio amable, sólo a participantes conectados que aún no
+votan, con un máximo de una vez cada 20 segundos por participante. La señal es una breve onda de
+acento; no envía mensajes y no expone votos.
 
-La capa de interacción entre pares (proyectiles, reacción de susto de la mascota, modo recreo) está
-descrita como trabajo pendiente en `PLAN.md`, con sus reglas de consentimiento y privacidad.
+## Capa de juego
+
+Cualquiera puede lanzar un objeto blando a la cara de otra persona de la mesa. Es decoración: no
+cambia ningún voto, no bloquea nada y no persiste más allá de un contador que muere con la ronda.
+Las reglas completas están en `docs/DECISIONS.md` ADR-005; lo relevante para el diseño visual:
+
+- **La cara es el blanco.** Sólo el avatar es interactivo, nunca el asiento completo, para que el
+  botón de recordatorio no acabe anidado dentro de otro botón. Es un `<button>` real: se alcanza con
+  Tab, las flechas izquierda y derecha recorren la mesa, y el aro de puntería aparece igual en hover
+  y en foco.
+- **El aro aparece igual sobre todas las caras**, haya votado la persona o no.
+- El objeto describe una parábola de cara a cara, deja una mancha en el paño que se desvanece en
+  2,5 s, y provoca un encogimiento de 520 ms en el avatar más un salto de susto en la mascota.
+- Hay tope de proyectiles simultáneos y de manchas en el paño, para que una mesa animada no se
+  convierta en sopa.
+- El proyectil tiene además un plazo límite: si el reloj de frames está frenado, el objeto aterriza
+  igual en lugar de quedarse colgado sobre el paño.
+- **Dos interruptores en la barra superior.** «Juego» es del facilitador y afecta a toda la sala;
+  cuando está apagado la bandeja desaparece en lugar de quedarse gris invitando a clics que serán
+  rechazados. «Efectos» es personal, se recuerda en el navegador y sólo afecta a esa pantalla.
+- La mascota tiene un cuarto estado, asustada, que sólo existe aquí porque es aquí donde está el
+  impacto que lo dispara.
 
 ## Responsive y accesibilidad
 

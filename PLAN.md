@@ -1,31 +1,5 @@
 # Trabajo Pendiente
 
-## Fase 3 — Interacción entre jugadores
-
-- Acción `player.throw {target_id, item}` y evento `player.hit`, validados en `rooms/services.py`
-  con la misma disciplina que `cast_vote`.
-- Límite autoritativo en el servidor: un lanzamiento cada 2,5 s por persona y un tope por ronda,
-  siguiendo el patrón ya existente de `last_reminded_at`.
-- Seis objetos con su arco, giro y calcomanía: tomate, bola de papel, café, almohada, sello
-  «APROBADO», zapatilla. Tope de proyectiles simultáneos y de calcomanías en el paño.
-- Cuarto estado de la mascota, «asustada»: salta hacia atrás y vuelve. Se implementa aquí, con el
-  impacto que lo dispara, y no antes.
-- Cualquiera puede lanzar a cualquiera; el facilitador deja de ser especial. Apuntar es hacer clic
-  en un asiento, con aro de puntería al pasar por encima.
-- Camino de teclado: flechas para seleccionar asiento, Enter para lanzar.
-- Añadir `PokerRoom.allow_playful_actions` (interruptor del facilitador para toda la sala) y una
-  preferencia personal de «reducir efectos» recordada en el navegador.
-- Reglas que no se negocian, porque sin ellas la capa deja de ser un juego:
-  - El objeto es idéntico haya votado el destinatario o no.
-  - Nada de lanzamientos automáticos ni de puntería que aparezca sólo sobre quienes faltan.
-  - Nada de marcadores acumulativos («más lento», «más golpeado»): los contadores mueren con la
-    ronda.
-  - Nada de objetos que lean como violencia.
-- Tests: límite de tasa, sala con juego apagado, y que el payload de `player.hit` no transporte
-  datos de voto.
-- Registrar ADR-005: capa de juego cosmética y autoritativa en el servidor.
-- Actualizar la sección de recordatorio en `docs/ROOM_VISUAL_DESIGN.md`.
-
 ## Fase 4 — Modo recreo
 
 - Disponible sólo en fase de votación y sólo si el facilitador lo habilita.
@@ -55,3 +29,5 @@
   mesa. Hacerla plegable y devolver el protagonismo al paño.
 - Los participantes autenticados no pueden elegir mascota ni color: reciben una identidad derivada.
   Sólo los invitados pasan por el selector, porque son los únicos con una pantalla de ingreso.
+- Los mensajes de `RoomActionError` están en inglés y se muestran tal cual en un toast, dentro de
+  una interfaz en español. Traducirlos y ajustar los `match` de los tests.

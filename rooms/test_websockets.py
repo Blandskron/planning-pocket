@@ -21,6 +21,15 @@ async def connect_participant(room, user):
     return communicator, state["payload"]
 
 
+async def wait_for(communicator, event_type, tries=6):
+    """Return the next event of a given type, skipping whatever else arrives."""
+    for _ in range(tries):
+        event = await communicator.receive_json_from()
+        if event.get("type") == event_type:
+            return event
+    raise AssertionError(f"no {event_type} event arrived")
+
+
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
 async def test_websocket_state_hides_votes_before_reveal():
@@ -198,3 +207,92 @@ async def test_websocket_rejects_an_untrusted_origin():
     )
     connected, _ = await communicator.connect()
     assert not connected
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_throw_broadcast_carries_no_vote_information():
+    """The playful layer must never become a side channel for the hidden vote."""
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    thrower = await sync_to_async(Participant.objects.create)(
+        room=room, user=owner, display_name="Thrower"
+    )
+    target = await sync_to_async(Participant.objects.create)(
+        room=room, display_name="Target", current_vote="13", connection_count=1
+    )
+
+    communicator, _ = await connect_participant(room, owner)
+    await communicator.send_json_to(
+        {"type": "player.throw", "target_id": target.id, "item": "tomate"}
+    )
+    event = await wait_for(communicator, "player.hit")
+
+    # Exact equality: the payload is the whole contract, and "13" is not in it.
+    assert event == {
+        "type": "player.hit",
+        "thrower_id": thrower.id,
+        "target_id": target.id,
+        "item": "tomate",
+    }
+    assert "13" not in str(event)
+
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_throwing_an_object_outside_the_catalogue_is_refused():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Thrower")
+    target = await sync_to_async(Participant.objects.create)(
+        room=room, display_name="Target", connection_count=1
+    )
+
+    communicator, _ = await connect_participant(room, owner)
+
+    await communicator.send_json_to(
+        {"type": "player.throw", "target_id": target.id, "item": "ladrillo"}
+    )
+    error = await wait_for(communicator, "error")
+    assert error["code"] == "invalid_action"
+
+    await communicator.send_json_to(
+        {"type": "player.throw", "target_id": "not-an-id", "item": "tomate"}
+    )
+    error = await wait_for(communicator, "error")
+    assert error["code"] == "invalid_payload"
+
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_only_the_facilitator_can_switch_the_playful_layer():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    guest_user = await sync_to_async(User.objects.create_user)(username="guest", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    await sync_to_async(Participant.objects.create)(
+        room=room, user=guest_user, display_name="Guest"
+    )
+
+    guest_socket, state = await connect_participant(room, guest_user)
+    assert state["room"]["allow_playful_actions"] is True
+
+    await guest_socket.send_json_to({"type": "room.set_playful", "enabled": False})
+    error = await wait_for(guest_socket, "error")
+    assert error["code"] == "invalid_action"
+    await sync_to_async(room.refresh_from_db)()
+    assert room.allow_playful_actions is True
+
+    owner_socket, _ = await connect_participant(room, owner)
+    await owner_socket.send_json_to({"type": "room.set_playful", "enabled": False})
+    event = await wait_for(owner_socket, "room.playful_changed")
+    assert event["allow_playful_actions"] is False
+    await sync_to_async(room.refresh_from_db)()
+    assert room.allow_playful_actions is False
+
+    await guest_socket.disconnect()
+    await owner_socket.disconnect()

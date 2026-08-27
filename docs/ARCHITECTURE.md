@@ -47,3 +47,7 @@ La comunicación WebSocket transmitirá principalmente actualizaciones de estado
 - `round.revealed`: Revela la ronda actual. El payload contendrá los resultados y los votos reales.
 - `round.reset`: Se reinicia la mesa.
 - `issue.selected`: El facilitador cambió la historia a estimar.
+- `player.hit`: Alguien lanzó un objeto a otra persona. Payload exacto:
+  `{"thrower_id": 1, "target_id": 2, "item": "tomate"}`. Es cosmético y deliberadamente
+  estrecho: no transporta información de voto (ver ADR-005).
+- `room.playful_changed`: El facilitador activó o desactivó la capa de juego para la sala.

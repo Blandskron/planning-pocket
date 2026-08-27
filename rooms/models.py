@@ -42,6 +42,10 @@ class PokerRoom(models.Model):
         help_text="Controls the privacy of votes. If 'voting', votes are hidden from clients."
     )
     deck = models.CharField(max_length=100, default='0,1,2,3,5,8,13,21,34,55,89,?,Coffee')
+    allow_playful_actions = models.BooleanField(
+        default=True,
+        help_text="Facilitator switch for the playful layer across the whole room."
+    )
 
     active_issue = models.ForeignKey(
         'Issue', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
@@ -73,7 +77,7 @@ class PokerRoom(models.Model):
         """
         self.voting_status = 'voting'
         self.save(update_fields=['voting_status'])
-        self.participants.update(current_vote=None)
+        self.participants.update(current_vote=None, throws_this_round=0)
 
     def __str__(self):
         return f"{self.name} ({self.public_id})"
@@ -148,6 +152,13 @@ class Participant(models.Model):
     joined_at = models.DateTimeField(auto_now_add=True)
     connection_count = models.PositiveIntegerField(default=0)
     last_reminded_at = models.DateTimeField(null=True, blank=True)
+    last_throw_at = models.DateTimeField(
+        null=True, blank=True, help_text="Cooldown anchor for the playful layer."
+    )
+    throws_this_round = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Per-round throw count. Reset with the votes; never accumulates."
+    )
 
     class Meta:
         unique_together = ('room', 'user')  # A registered user can only join a room once

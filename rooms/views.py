@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import GuestJoinForm, IssueForm, PokerRoomForm
 from .models import Participant, PokerRoom
+from .playful import THROWABLES
 
 
 @login_required
@@ -100,6 +101,7 @@ def room_detail(request, public_id):
         'deck_cards': deck_cards,
         'issues': issues,
         'issue_form': issue_form,
+        'throwables': THROWABLES,
     })
 
 

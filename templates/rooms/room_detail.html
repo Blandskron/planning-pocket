@@ -13,6 +13,14 @@
         </div>
         <div class="room-top-actions">
             {% if is_owner %}<span class="facilitator-badge">Facilitador</span>{% endif %}
+            {% if is_owner %}
+                <button class="room-switch" type="button" id="playful-switch" aria-pressed="{{ room.allow_playful_actions|yesno:'true,false' }}">
+                    <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Juego</span>
+                </button>
+            {% endif %}
+            <button class="room-switch" type="button" id="effects-switch" aria-pressed="true">
+                <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Efectos</span>
+            </button>
             <span id="ws-status" class="connection-state" title="Conectando"><span aria-hidden="true"></span><span class="connection-label">Conectando</span></span>
             <button class="room-button room-button-secondary" type="button" id="share-room"><span aria-hidden="true">↗</span> Compartir</button>
         </div>
@@ -79,7 +87,11 @@
                         <article class="table-seat {% if p.id == participant.id %}is-me{% endif %} {% if p.current_vote %}has-voted{% else %}is-thinking{% endif %} {% if room.voting_status == 'revealed' %}is-revealed{% endif %}" id="participant-{{ p.id }}" data-participant-id="{{ p.id }}" style="--seat-hue: var(--seat-hue-{{ ident.color }});">
                             <div class="seat-figure">
                                 <span class="seat-pet" aria-hidden="true"><svg viewBox="0 0 40 40"><use href="#pet-{{ ident.pet }}"></use></svg><span class="seat-zzz">z</span></span>
-                                <span class="seat-avatar" aria-hidden="true"><svg viewBox="0 0 30 22"><use href="#face-{{ ident.avatar }}"></use></svg></span>
+                                {% if p.id == participant.id %}
+                                    <span class="seat-avatar" aria-hidden="true"><svg viewBox="0 0 30 22"><use href="#face-{{ ident.avatar }}"></use></svg></span>
+                                {% else %}
+                                    <button class="seat-avatar" type="button" data-throw-target="{{ p.id }}" aria-label="Lanzar algo a {{ p.display_name }}"><svg viewBox="0 0 30 22" aria-hidden="true"><use href="#face-{{ ident.avatar }}"></use></svg></button>
+                                {% endif %}
                                 <div class="participant-card">
                                     <div class="participant-card-inner">
                                         <div class="participant-face participant-back"></div>
@@ -127,6 +139,13 @@
                     <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" style="--card-index: {{ forloop.counter0 }}; --card-total: {{ deck_cards|length }};" aria-label="Votar {{ card }}" aria-pressed="false" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
                 {% endfor %}
             </div>
+            <div class="throw-tray" id="throw-tray" role="group" aria-label="Objeto para lanzar" {% if not room.allow_playful_actions %}hidden{% endif %}>
+                <span class="throw-tray-label">Para lanzar</span>
+                {% for slug, label in throwables %}
+                    <button class="throw-item" type="button" data-item="{{ slug }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}" title="{{ label }}" aria-label="{{ label }}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#item-{{ slug }}"></use></svg></button>
+                {% endfor %}
+                <p class="throw-hint">Elige un objeto y haz clic en la cara de alguien. Es sólo decoración: no cambia ningún voto. <b>Tab</b> y las flechas también recorren la mesa.</p>
+            </div>
         </section>
     </div>
 </section>
@@ -143,6 +162,15 @@ const STAGGER = 70;
 let ws;
 let myCurrentVote = null;
 let currentIssue = null;
+let allowPlayful = {{ room.allow_playful_actions|yesno:"true,false" }};
+let selectedItem = '{{ throwables.0.0 }}';
+/* A personal switch, remembered per browser. Independent of the facilitator's
+   room-wide one: either being off is enough to stop the effects here. */
+let effectsOn = true;
+try { effectsOn = localStorage.getItem('planning-pocket-effects') !== 'off'; } catch (_) {}
+const ITEM_LABELS = {
+{% for slug, label in throwables %}    '{{ slug }}': '{{ label }}',
+{% endfor %}};
 let votingStatus = "{{ room.voting_status }}";
 
 function showToast(message, isError = false) {
@@ -278,12 +306,17 @@ function createParticipantCard(participant) {
     seat.dataset.participantId = participant.id;
     const figure = document.createElement('div');
     figure.className = 'seat-figure';
+    const isMe = participant.id === myParticipantId;
+    const face = '<svg viewBox="0 0 30 22" aria-hidden="true"><use href="#face-sereno"></use></svg>';
     figure.innerHTML =
         '<span class="seat-pet" aria-hidden="true">' +
             '<svg viewBox="0 0 40 40"><use href="#pet-gato"></use></svg>' +
             '<span class="seat-zzz">z</span></span>' +
-        '<span class="seat-avatar" aria-hidden="true">' +
-            '<svg viewBox="0 0 30 22"><use href="#face-sereno"></use></svg></span>';
+        (isMe
+            ? '<span class="seat-avatar" aria-hidden="true">' + face + '</span>'
+            : '<button class="seat-avatar" type="button" data-throw-target="' + participant.id +
+              '" aria-label="Lanzar algo a ' + String(participant.display_name).replace(/"/g, '') +
+              '">' + face + '</button>');
     const card = document.createElement('div');
     card.className = 'participant-card';
     const inner = document.createElement('div');
@@ -300,7 +333,7 @@ function createParticipantCard(participant) {
     const name = document.createElement('div');
     name.className = 'seat-name';
     name.textContent = participant.display_name;
-    if (participant.id === myParticipantId) {
+    if (isMe) {
         const me = document.createElement('span');
         me.textContent = 'Tú';
         name.append(me);
@@ -312,6 +345,7 @@ function createParticipantCard(participant) {
     state.textContent = 'Pensando';
     seat.append(figure, name, state);
     applyIdentity(seat, participant);
+    syncThrowTargets();
     if (isFacilitator && participant.id !== myParticipantId) {
         const reminder = document.createElement('button');
         reminder.className = 'seat-reminder';
@@ -477,6 +511,123 @@ function travelCard(button, value) {
     window.setTimeout(drop, 900);
 }
 
+/* ---------------- playful layer ----------------
+   Every throw is decided by the server. The client sends an intention, waits for
+   the broadcast, and only then animates, so a refused throw shows as a message
+   instead of an animation that never happened. */
+
+function syncThrowTargets() {
+    const enabled = allowPlayful;
+    document.querySelectorAll('.seat-avatar[data-throw-target]').forEach(button => {
+        button.disabled = !enabled;
+        const seat = button.closest('.table-seat');
+        const name = seat ? seat.querySelector('.seat-name').textContent.replace('Tú', '').trim() : '';
+        button.setAttribute('aria-label', 'Lanzar ' + (ITEM_LABELS[selectedItem] || 'algo').toLowerCase() + ' a ' + name);
+    });
+    const tray = document.getElementById('throw-tray');
+    if (tray) tray.hidden = !enabled;
+}
+
+function throwAt(targetId) {
+    if (!allowPlayful) return;
+    send('player.throw', {target_id: Number(targetId), item: selectedItem});
+}
+
+function seatCentre(participantId) {
+    const seat = document.getElementById('participant-' + participantId);
+    if (!seat) return null;
+    const avatar = seat.querySelector('.seat-avatar');
+    const stage = document.getElementById('table-stage').getBoundingClientRect();
+    const box = (avatar || seat).getBoundingClientRect();
+    return {
+        seat: seat,
+        x: box.left - stage.left + box.width / 2,
+        y: box.top - stage.top + box.height / 2
+    };
+}
+
+function markHit(target, item) {
+    target.seat.classList.remove('is-hit');
+    void target.seat.offsetWidth;
+    target.seat.classList.add('is-hit');
+    window.setTimeout(() => target.seat.classList.remove('is-hit'), 700);
+
+    const stage = document.getElementById('table-stage');
+    const decal = document.createElement('span');
+    decal.className = 'throw-decal';
+    decal.style.left = target.x + 'px';
+    decal.style.top = (target.y + 18) + 'px';
+    decal.style.color = 'var(--item-' + item + ')';
+    decal.style.transform = 'rotate(' + ((target.x * 7 + target.y * 13) % 360) + 'deg)';
+    decal.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><use href="#item-splat"></use></svg>';
+    stage.append(decal);
+    requestAnimationFrame(() => decal.classList.add('is-fading'));
+    window.setTimeout(() => decal.remove(), 2600);
+    /* Keep the felt readable however busy the table gets. */
+    const decals = stage.querySelectorAll('.throw-decal');
+    if (decals.length > 12) decals[0].remove();
+
+    const label = document.createElement('span');
+    label.className = 'throw-label';
+    label.textContent = ITEM_LABELS[item] || '';
+    label.style.left = target.x + 'px';
+    label.style.top = (target.y - 34) + 'px';
+    stage.append(label);
+    window.setTimeout(() => label.remove(), 1700);
+}
+
+function playThrow(throwerId, targetId, item) {
+    const target = seatCentre(targetId);
+    if (!target) return;
+    if (!effectsOn) return;
+    const from = seatCentre(throwerId);
+    if (!from || reduceMotion || typeof requestAnimationFrame !== 'function') {
+        markHit(target, item);
+        return;
+    }
+
+    const stage = document.getElementById('table-stage');
+    const flying = stage.querySelectorAll('.throw-fly');
+    if (flying.length > 6) { markHit(target, item); return; }
+
+    const projectile = document.createElement('span');
+    projectile.className = 'throw-fly';
+    projectile.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#item-' + item + '"></use></svg>';
+    stage.append(projectile);
+
+    const controlX = (from.x + target.x) / 2;
+    const controlY = Math.min(from.y, target.y) - 110;
+    const duration = 540;
+    const started = performance.now();
+    /* A hard deadline as well as the progress check: if the frame clock is
+       throttled the object must still land instead of hanging over the felt. */
+    const deadline = window.setTimeout(() => {
+        projectile.remove();
+        markHit(target, item);
+    }, duration + 400);
+
+    const step = now => {
+        const progress = Math.min(1, (now - started) / duration);
+        const rest = 1 - progress;
+        const x = rest * rest * from.x + 2 * rest * progress * controlX + progress * progress * target.x;
+        const y = rest * rest * from.y + 2 * rest * progress * controlY + progress * progress * target.y;
+        projectile.style.transform = 'translate(' + (x - 13) + 'px, ' + (y - 13) + 'px) rotate(' + (progress * 540) + 'deg)';
+        if (progress < 1) { requestAnimationFrame(step); return; }
+        window.clearTimeout(deadline);
+        projectile.remove();
+        markHit(target, item);
+    };
+    requestAnimationFrame(step);
+}
+
+function setEffects(on) {
+    effectsOn = on;
+    try { localStorage.setItem('planning-pocket-effects', on ? 'on' : 'off'); } catch (_) {}
+    const button = document.getElementById('effects-switch');
+    button.setAttribute('aria-pressed', String(on));
+    button.title = on ? 'Desactivar efectos en tu pantalla' : 'Activar efectos en tu pantalla';
+}
+
 function countdown(done) {
     const counter = document.getElementById('table-count');
     let remaining = 3;
@@ -535,6 +686,7 @@ function connect() {
         if (data.type === 'room.state') {
             votingStatus = data.payload.room.voting_status;
             currentIssue = data.payload.active_issue;
+            allowPlayful = data.payload.room.allow_playful_actions;
             data.payload.participants.forEach(renderParticipant);
             layoutSeats();
             myCurrentVote = data.payload.your_vote;
@@ -542,6 +694,7 @@ function connect() {
             renderActiveIssue(data.payload.active_issue);
             setResults(data.payload.results, data.payload.participants);
             updateControls(data.payload.active_issue);
+            syncThrowTargets();
         } else if (data.type === 'participant.joined') {
             renderParticipant(data.participant);
         } else if (data.type === 'participant.left') {
@@ -553,6 +706,13 @@ function connect() {
         } else if (data.type === 'participant.reminded') {
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) { seat.classList.remove('is-reminded'); void seat.offsetWidth; seat.classList.add('is-reminded'); }
+        } else if (data.type === 'player.hit') {
+            playThrow(data.thrower_id, data.target_id, data.item);
+        } else if (data.type === 'room.playful_changed') {
+            allowPlayful = data.allow_playful_actions;
+            const switcher = document.getElementById('playful-switch');
+            if (switcher) switcher.setAttribute('aria-pressed', String(allowPlayful));
+            syncThrowTargets();
         } else if (data.type === 'room.revealed') {
             playReveal(data.participants, data.results);
         } else if (data.type === 'room.resetted') {
@@ -599,11 +759,51 @@ function finishIssue() {
     const input = document.getElementById('final-result-input');
     if (input.value) { send('issue.finish', {final_result: input.value}); input.value = ''; }
 }
+/* One delegated listener for the seats, so it keeps working for seats that arrive
+   over the WebSocket. */
+document.getElementById('participants-list').addEventListener('click', event => {
+    const button = event.target.closest('.seat-avatar[data-throw-target]');
+    if (button && !button.disabled) throwAt(button.dataset.throwTarget);
+});
+
+/* Left and right move between faces around the table, on top of plain Tab. */
+document.getElementById('participants-list').addEventListener('keydown', event => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const buttons = Array.from(document.querySelectorAll('.seat-avatar[data-throw-target]:not(:disabled)'));
+    const here = buttons.indexOf(document.activeElement);
+    if (here < 0 || buttons.length < 2) return;
+    event.preventDefault();
+    const next = (here + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next].focus();
+});
+
+document.getElementById('throw-tray').addEventListener('click', event => {
+    const button = event.target.closest('.throw-item');
+    if (!button) return;
+    selectedItem = button.dataset.item;
+    document.querySelectorAll('.throw-item').forEach(item => {
+        item.setAttribute('aria-pressed', String(item === button));
+    });
+    syncThrowTargets();
+});
+
+document.getElementById('effects-switch').addEventListener('click', () => setEffects(!effectsOn));
+
+const playfulSwitch = document.getElementById('playful-switch');
+if (playfulSwitch) {
+    playfulSwitch.addEventListener('click', () => {
+        send('room.set_playful', {enabled: !allowPlayful});
+    });
+    playfulSwitch.title = 'Activar o desactivar el juego para toda la sala';
+}
+
 document.getElementById('share-room').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); } catch { showToast('Copia el enlace desde la barra del navegador.', true); }
 });
 layoutSeats();
 syncTableMarks();
+setEffects(effectsOn);
+syncThrowTargets();
 connect();
 </script>
 {% endblock %}

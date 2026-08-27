@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import Issue, Participant, PokerRoom
+from .playful import MAX_THROWS_PER_ROUND, THROW_COOLDOWN_SECONDS, THROWABLE_SLUGS
 
 
 class RoomActionError(Exception):
@@ -56,7 +57,7 @@ def reset_round(room_id, actor):
 
     room.voting_status = "voting"
     room.save(update_fields=["voting_status"])
-    Participant.objects.filter(room=room).update(current_vote=None)
+    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
     return room
 
 
@@ -121,7 +122,7 @@ def activate_issue(room_id, issue_id, actor):
     room.save(update_fields=["active_issue", "voting_status"])
     issue.status = "active"
     issue.save(update_fields=["status"])
-    Participant.objects.filter(room=room).update(current_vote=None)
+    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
     return issue
 
 
@@ -147,7 +148,7 @@ def finish_active_issue(room_id, final_result, actor):
     room.active_issue = None
     room.voting_status = "voting"
     room.save(update_fields=["active_issue", "voting_status"])
-    Participant.objects.filter(room=room).update(current_vote=None)
+    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
     return issue
 
 
@@ -173,3 +174,53 @@ def remind_participant(room_id, participant_id, actor):
     participant.last_reminded_at = now
     participant.save(update_fields=["last_reminded_at"])
     return participant
+
+
+@transaction.atomic
+def set_playful_actions(room_id, enabled, actor):
+    """Turn the playful layer on or off for the whole room."""
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+    _require_facilitator(room, actor)
+
+    room.allow_playful_actions = bool(enabled)
+    room.save(update_fields=["allow_playful_actions"])
+    return room
+
+
+@transaction.atomic
+def throw_item(room_id, thrower_id, target_id, item):
+    """Register a cosmetic throw from one participant at another.
+
+    Nothing about the round changes here. The server owns the limits because the
+    browser must not be able to grant itself a faster arm, and the checks are
+    deliberately blind to whether anyone has voted: a throw must never become a way
+    to single out the person the table is waiting for.
+    """
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+
+    if not room.allow_playful_actions:
+        raise RoomActionError("The facilitator turned off playful actions.")
+    if item not in THROWABLE_SLUGS:
+        raise RoomActionError("That object is not available.")
+    if thrower_id == target_id:
+        raise RoomActionError("Pick someone else at the table.")
+
+    thrower = Participant.objects.select_for_update().get(pk=thrower_id, room=room)
+    target = Participant.objects.select_for_update().get(pk=target_id, room=room)
+    if target.connection_count == 0:
+        raise RoomActionError("That person is not at the table right now.")
+
+    now = timezone.now()
+    if thrower.last_throw_at:
+        elapsed = (now - thrower.last_throw_at).total_seconds()
+        if elapsed < THROW_COOLDOWN_SECONDS:
+            raise RoomActionError("Give it a couple of seconds before throwing again.")
+    if thrower.throws_this_round >= MAX_THROWS_PER_ROUND:
+        raise RoomActionError("That is enough throwing for this round.")
+
+    thrower.last_throw_at = now
+    thrower.throws_this_round += 1
+    thrower.save(update_fields=["last_throw_at", "throws_this_round"])
+    return thrower, target

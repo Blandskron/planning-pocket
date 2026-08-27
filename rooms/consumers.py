@@ -17,6 +17,8 @@ from .services import (
     remind_participant,
     reset_round,
     reveal_round,
+    set_playful_actions,
+    throw_item,
 )
 from .services import activate_issue as activate_room_issue
 
@@ -87,6 +89,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "issue.activate",
             "issue.finish",
             "participant.remind",
+            "player.throw",
+            "room.set_playful",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
             return
@@ -103,6 +107,10 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.handle_issue_finish(data)
         elif event_type == "participant.remind":
             await self.handle_participant_reminder(data)
+        elif event_type == "player.throw":
+            await self.handle_throw(data)
+        elif event_type == "room.set_playful":
+            await self.handle_set_playful(data)
 
     async def handle_vote(self, data):
         value = data.get("value")
@@ -200,6 +208,51 @@ class PokerConsumer(AsyncWebsocketConsumer):
             {"type": "participant.reminded", "participant_id": participant["id"]},
         )
 
+    async def handle_throw(self, data):
+        target_id = data.get("target_id")
+        item = data.get("item")
+        if isinstance(target_id, bool) or not isinstance(target_id, int):
+            await self.send_error("invalid_payload", "A target id must be an integer.")
+            return
+        if not isinstance(item, str):
+            await self.send_error("invalid_payload", "An item must be a catalogue slug.")
+            return
+
+        try:
+            throw = await self.register_throw(target_id, item)
+        except (Participant.DoesNotExist, RoomActionError) as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        # Deliberately narrow: who threw, at whom, and what. No vote state, no
+        # counters, nothing that could be read as a hint about anyone's card.
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "player.hit",
+                "thrower_id": throw["thrower_id"],
+                "target_id": throw["target_id"],
+                "item": throw["item"],
+            },
+        )
+
+    async def handle_set_playful(self, data):
+        enabled = data.get("enabled")
+        if not isinstance(enabled, bool):
+            await self.send_error("invalid_payload", "The switch must be true or false.")
+            return
+
+        try:
+            allowed = await self.update_playful(enabled)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "room.playful_changed", "allow_playful_actions": allowed},
+        )
+
     async def send_error(self, code, message):
         await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
 
@@ -279,6 +332,18 @@ class PokerConsumer(AsyncWebsocketConsumer):
         return {"id": participant.id}
 
     @database_sync_to_async
+    def register_throw(self, target_id, item):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        thrower, target = throw_item(room.id, self.participant.id, target_id, item)
+        return {"thrower_id": thrower.id, "target_id": target.id, "item": item}
+
+    @database_sync_to_async
+    def update_playful(self, enabled):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        room = set_playful_actions(room.id, enabled, self.scope.get("user"))
+        return room.allow_playful_actions
+
+    @database_sync_to_async
     def get_all_participants_state(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
         return [
@@ -298,6 +363,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
                 "voting_status": room.voting_status,
                 "deck": room.deck.split(","),
                 "is_facilitator": is_facilitator,
+                "allow_playful_actions": room.allow_playful_actions,
             },
             "active_issue": self.serialize_issue(room.active_issue) if room.active_issue else None,
             "participants": [
@@ -368,6 +434,28 @@ class PokerConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps(
                 {"type": "participant.reminded", "participant_id": event["participant_id"]}
+            )
+        )
+
+    async def player_hit(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "player.hit",
+                    "thrower_id": event["thrower_id"],
+                    "target_id": event["target_id"],
+                    "item": event["item"],
+                }
+            )
+        )
+
+    async def room_playful_changed(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "room.playful_changed",
+                    "allow_playful_actions": event["allow_playful_actions"],
+                }
             )
         )
 
