@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Blandskron. All rights reserved.
 # Author: Bastian Landskron (Cybersecurity, DevOps & AI)
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
