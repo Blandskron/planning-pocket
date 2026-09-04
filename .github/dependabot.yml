@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Django, channels y daphne se mueven juntos: separarlos produce PRs que no
+      # pueden pasar CI por sí solos.
+      django-stack:
+        patterns:
+          - "Django"
+          - "channels*"
+          - "daphne"
+          - "asgiref"
+      dev-tools:
+        patterns:
+          - "pytest*"
+          - "ruff"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(docker)"

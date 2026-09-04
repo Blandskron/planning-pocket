@@ -1,0 +1,81 @@
+# Copyright (c) 2026 Blandskron. All rights reserved.
+#
+# Publica una GitHub Release cuando se empuja un tag vX.Y.Z. El tag no publica nada por sí
+# solo: primero tiene que pasar el mismo CI que cualquier pull request.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validación
+    uses: ./.github/workflows/ci.yml
+
+  consistency:
+    name: El tag coincide con el proyecto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # Un tag que no coincide con pyproject.toml produce una release que miente sobre lo
+      # que contiene. Se comprueba aquí porque es barato y el error es caro de deshacer.
+      - name: Comparar el tag con pyproject.toml y el CHANGELOG
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PROJECT="$(python -c 'import tomllib,pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          echo "tag=$TAG pyproject=$PROJECT"
+          if [ "$TAG" != "${PROJECT}" ]; then
+            echo "::error::El tag v$TAG no coincide con la versión $PROJECT de pyproject.toml"
+            exit 1
+          fi
+          if ! grep -q "^## \[${TAG}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md no tiene una sección '## [${TAG}]'"
+            exit 1
+          fi
+
+  publish:
+    name: Publicar la release
+    runs-on: ubuntu-latest
+    needs: [validate, consistency]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extraer las notas del CHANGELOG
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          # Todo lo que hay entre la cabecera de esta versión y la de la siguiente.
+          awk -v tag="$TAG" '
+            $0 ~ "^## \[" tag "\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No hay notas para $TAG en CHANGELOG.md"
+            exit 1
+          fi
+          cat release-notes.md
+
+      - name: Crear la GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Planning Pocket ${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            --verify-tag

@@ -42,6 +42,26 @@ En cada iteración:
 - NO optimices para demostrar complejidad técnica.
 - NO agregues dependencias sin justificación.
 
-## 6. Cuándo detenerse
+## 6. Verificación y CI
+
+Antes de decir que una tarea está terminada:
+
+```bash
+python -m ruff check .
+python -m pytest .              # 96 tests, unos 5 segundos
+python manage.py check
+python manage.py makemigrations --check --dry-run
+```
+
+Si tocaste algo que se dibuja en la mesa, además los tests de navegador
+(`DJANGO_ALLOW_ASYNC_UNSAFE=true pytest -m e2e`).
+
+`.github/workflows/ci.yml` corre todo eso más `check --deploy` con la configuración real de
+producción, el umbral de cobertura (80 %) y el arranque de la imagen Docker. No inventes un
+comando de verificación distinto: si CI lo corre, córrelo tú igual.
+
+El flujo de ramas, commits y publicación de versiones está en `CONTRIBUTING.md`.
+
+## 7. Cuándo detenerse
 
 Al finalizar una unidad lógica y verificable, o al finalizar la fase actual. Nunca avances por cinco o diez fases de forma automática.

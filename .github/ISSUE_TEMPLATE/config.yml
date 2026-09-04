@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Reportar un problema de seguridad
+    url: https://github.com/Blandskron/planning-pocket/security/advisories/new
+    about: Los fallos de seguridad no van en issues públicos. Ver SECURITY.md.
