@@ -27,8 +27,8 @@ jobs:
     name: Ruff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -46,8 +46,8 @@ jobs:
         # 3.12 es el suelo real: Django 6.1 exige >=3.12. 3.13 es lo que corre la imagen.
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -57,7 +57,7 @@ jobs:
         run: python -m pytest . -p no:cacheprovider --cov --cov-report=term-missing --cov-report=xml
       - name: Guardar el reporte de cobertura
         if: matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-xml
           path: coverage.xml
@@ -67,8 +67,8 @@ jobs:
     name: Django (dev y producción)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -110,8 +110,8 @@ jobs:
     name: Navegador (Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -126,7 +126,7 @@ jobs:
         run: python -m pytest -m e2e -p no:cacheprovider
       - name: Guardar las trazas si algo falla
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-output
           path: test-results/
@@ -137,7 +137,7 @@ jobs:
     name: Imagen Docker
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
       - name: Construir la imagen
         uses: docker/build-push-action@v6
