@@ -3,7 +3,7 @@ name = "planning_pocket"
 version = "0.1.0"
 description = "Planning Poker Online Alternative"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings_test"
@@ -15,7 +15,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".git",
     ".venv",
@@ -26,3 +26,28 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = []
+
+[tool.coverage.run]
+branch = true
+source = ["accounts", "config", "rooms"]
+omit = [
+    "*/migrations/*",
+    "*/tests.py",
+    "*/test_*.py",
+    "config/asgi.py",
+    "config/wsgi.py",
+    "config/settings_test.py",
+]
+
+[tool.coverage.report]
+# 80% general es el objetivo declarado en AGENTS.md, y la suite está justo por encima
+# (80.48%). El margen es estrecho a propósito: quien baje la cobertura se entera en el PR,
+# no seis meses después. El punto flojo conocido es rooms/consumers.py (67%).
+fail_under = 80
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
