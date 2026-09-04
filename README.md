@@ -1,5 +1,10 @@
 # Planning Pocket
 
+[![CI](https://github.com/Blandskron/planning-pocket/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Blandskron/planning-pocket/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Blandskron/planning-pocket?sort=semver)](https://github.com/Blandskron/planning-pocket/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+
 Planning Pocket is a fast, modern, and privacy-first web application for Agile teams to estimate tasks using Planning Poker. It is designed to be extremely simple: no SPA frameworks, just standard HTML/CSS powered by Django and WebSockets.
 
 ## Features
@@ -21,16 +26,18 @@ Planning Pocket is a fast, modern, and privacy-first web application for Agile t
   and sound is five tones synthesised in the browser, off by default.
 
 ## Tech Stack
-- **Backend:** Python 3.13, Django 4.2+
+- **Backend:** Python 3.12+ (3.13 in the image), Django 6.1
 - **Real-time:** Django Channels, Daphne, Redis (Production), Vanilla JS (Frontend)
 - **Database:** PostgreSQL (Production) / SQLite (Local)
-- **Testing:** Pytest, pytest-django
+- **Testing:** Pytest, pytest-django, Playwright
+- **CI:** GitHub Actions — lint, tests with a coverage floor, browser tests, a production
+  `check --deploy`, and a Docker image that has to boot
 
 ## Getting Started (Local Development)
 
 ### 1. Setup Environment
 ```powershell
-python --version # Python 3.11+ is required
+python --version # Python 3.12+ is required (Django 6.1 needs it)
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
@@ -49,9 +56,14 @@ Navigate to `http://localhost:8000`.
 
 ### 4. Running Tests
 ```powershell
-python -m pytest . -p no:cacheprovider
+python -m pytest . -p no:cacheprovider   # 96 tests, ~5 seconds
 python -m ruff check .
 python manage.py check
+```
+
+With coverage, the way CI runs it. The floor is 80%:
+```powershell
+python -m pytest . --cov --cov-report=term-missing
 ```
 
 Browser tests live behind the `e2e` marker and run separately, because they need an event loop
@@ -78,6 +90,20 @@ For production, set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`,
 ## Security & Architecture Philosophy
 - **Server as the Source of Truth:** All business validations and privacy locks are implemented on the Django consumer. The browser is a dumb terminal.
 - **No SPA Frameworks:** Following a minimalist approach to reduce complexity and asset size.
+
+## Contributing
+
+`main` is always deployable; everything else arrives through a pull request that CI has
+signed off on. The workflow, the commit convention and the rules that are not up for debate
+inside a pull request are in [CONTRIBUTING.md](CONTRIBUTING.md). AI agents have their own
+contract in [AGENTS.md](AGENTS.md).
+
+Release history: [CHANGELOG.md](CHANGELOG.md).
+Found a security bug? Do not open an issue — see [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ---
 *Built with an Agents-first and Human-friendly approach.*
