@@ -57,7 +57,7 @@ jobs:
         run: python -m pytest . -p no:cacheprovider --cov --cov-report=term-missing --cov-report=xml
       - name: Guardar el reporte de cobertura
         if: matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
@@ -126,7 +126,7 @@ jobs:
         run: python -m pytest -m e2e -p no:cacheprovider
       - name: Guardar las trazas si algo falla
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-output
           path: test-results/
