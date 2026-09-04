@@ -1,0 +1,48 @@
+# El Dockerfile hace `COPY . /app/`. Sin este archivo, la imagen se lleva dentro el .env de
+# quien la construye —con SECRET_KEY y la contraseña del superusuario— en una capa que queda
+# ahí para siempre, más el .git y el virtualenv entero.
+
+# Secretos. Esta es la razón por la que existe este archivo.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Entornos virtuales y caches
+.venv/
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Historial y metadatos del repositorio
+.git/
+.github/
+.gitignore
+.dockerignore
+
+# Datos y artefactos locales
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+staticfiles/
+.run/
+test-results/
+*.log
+
+# Sólo sirven en la máquina de quien desarrolla
+docs/
+AGENTS.md
+PLAN.md
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+requirements-dev.txt
+conftest.py
+docker-compose.yml

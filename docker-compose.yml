@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Blandskron. All rights reserved.
+#
+# Entorno de producción reducido para levantar en local: PostgreSQL, Redis y la aplicación
+# bajo daphne. Las credenciales de la base son de juguete y sólo valen aquí dentro.
+
 services:
   web:
     build: .
@@ -12,10 +17,14 @@ services:
       DATABASE_URL: postgres://user:password@db:5432/planning_pocket
       REDIS_URL: redis://redis:6379/0
     depends_on:
-      - db
-      - redis
+      # Sin `condition`, compose sólo espera a que el contenedor arranque, no a que Postgres
+      # acepte conexiones. El `migrate` de abajo llegaba antes que la base y fallaba.
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     command: >
-      sh -c "python manage.py migrate && 
+      sh -c "python manage.py migrate &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
 
   db:
@@ -28,11 +37,21 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d planning_pocket"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres_data:

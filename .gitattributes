@@ -1,0 +1,23 @@
+# Normaliza a LF dentro del repositorio. Sin esto, quien clona en Windows con
+# core.autocrlf=true recibe los scripts con CRLF en su copia de trabajo, y como el
+# Dockerfile hace `COPY . /app/`, ese CRLF entra en la imagen: el kernel lee el shebang
+# como `/usr/bin/env bash\r` y el contenedor muere con "no such file or directory".
+* text=auto eol=lf
+
+# Estos rompen de verdad si les entra un CR, así que no se dejan a la heurística.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-entrypoint.sh text eol=lf
+build.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binarios: que git no intente convertir nada.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.sqlite3 binary
