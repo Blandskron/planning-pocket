@@ -32,16 +32,13 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME#v}"
-          PROJECT="$(python -c 'import tomllib,pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          PROJECT="$(python .github/scripts/project_version.py)"
           echo "tag=$TAG pyproject=$PROJECT"
-          if [ "$TAG" != "${PROJECT}" ]; then
+          if [ "$TAG" != "$PROJECT" ]; then
             echo "::error::El tag v$TAG no coincide con la versión $PROJECT de pyproject.toml"
             exit 1
           fi
-          if ! grep -q "^## \[${TAG}\]" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md no tiene una sección '## [${TAG}]'"
-            exit 1
-          fi
+          python .github/scripts/release_notes.py "$TAG" --check
 
   publish:
     name: Publicar la release
@@ -53,22 +50,15 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
       - name: Extraer las notas del CHANGELOG
-        id: notes
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME#v}"
-          # Todo lo que hay entre la cabecera de esta versión y la de la siguiente.
-          awk -v tag="$TAG" '
-            $0 ~ "^## \[" tag "\]" { found = 1; next }
-            found && /^## \[/ { exit }
-            found { print }
-          ' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
-            echo "::error::No hay notas para $TAG en CHANGELOG.md"
-            exit 1
-          fi
+          python .github/scripts/release_notes.py "$TAG" > release-notes.md
           cat release-notes.md
 
       - name: Crear la GitHub Release
