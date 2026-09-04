@@ -69,13 +69,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
 
     # Third party
-    'rest_framework',
     'channels',
 
     # Local
     'accounts.apps.AccountsConfig',
     'rooms.apps.RoomsConfig',
-    'poker.apps.PokerConfig',
 ]
 
 MIDDLEWARE = [

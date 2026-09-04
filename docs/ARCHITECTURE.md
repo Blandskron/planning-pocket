@@ -4,11 +4,17 @@
 El sistema sigue una arquitectura monolítica modular basada en Django, donde el servidor es la fuente de verdad (Server-Side Authority). Se utiliza Django Channels y Redis para mantener sincronizados a los participantes de la sala en tiempo real.
 
 ## 2. Aplicaciones (Módulos)
-El proyecto se dividirá en las siguientes aplicaciones Django para separar responsabilidades:
+El proyecto se divide en dos aplicaciones Django:
 
 - **`accounts`**: Gestión de usuarios autenticados, registro, login y sesiones.
-- **`rooms`**: Gestión de las salas de Planning Poker, creación, configuración, enlaces públicos (public_id) y control de acceso (incluyendo identidades de invitados).
-- **`poker`**: Núcleo del negocio. Contiene la lógica de Issues, VotingRounds, Votes y la máquina de estados.
+- **`rooms`**: Todo lo demás. Salas, enlaces públicos (`public_id`), identidades de invitados,
+  issues, la máquina de estados de la votación y la capa de tiempo real.
+
+El diseño original preveía una tercera app `poker` para el núcleo del negocio. Nunca llegó a
+tener código: las reglas viven en `rooms/services.py`, que es el único lugar que decide si una
+acción es válida. La app vacía se eliminó antes de la v1.0.0 en vez de arrastrarla como
+promesa. Si el dominio crece lo bastante para justificar la separación, el corte natural sigue
+siendo `services.py`.
 
 ## 3. Límites de Responsabilidad
 - **Backend (Django)**: Valida todas las acciones, autoriza a los usuarios y mantiene el estado. Calcula resultados estadísticos y determina qué información es visible.
