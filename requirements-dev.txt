@@ -4,4 +4,4 @@ pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 pytest-django==4.14.0
 pytest-playwright==0.10.0
-ruff==0.16.10
+ruff==0.17.1
