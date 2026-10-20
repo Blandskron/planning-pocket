@@ -6,6 +6,7 @@ from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
+from .decks import SHORT_DECK_VALUE
 from .identity import COLOR_COUNT, FACES, PETS, derive_identity
 from .utils import generate_guest_token, generate_public_id
 
@@ -41,7 +42,14 @@ class PokerRoom(models.Model):
         default='voting',
         help_text="Controls the privacy of votes. If 'voting', votes are hidden from clients."
     )
-    deck = models.CharField(max_length=100, default='0,1,2,3,5,8,13,21,34,55,89,?,Coffee')
+    deck = models.CharField(
+        max_length=100,
+        default=SHORT_DECK_VALUE,
+        help_text=(
+            "Cartas de esta sala, separadas por comas. Siempre una de las dos listas "
+            "cerradas de rooms/decks.py; el facilitador alterna entre ellas."
+        )
+    )
     allow_playful_actions = models.BooleanField(
         default=True,
         help_text="Facilitator switch for the playful layer across the whole room."
@@ -70,6 +78,17 @@ class PokerRoom(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     closed_at = models.DateTimeField(null=True, blank=True)
 
+    @property
+    def active_participants(self):
+        """La mesa: todo el mundo menos quien fue expulsado.
+
+        La expulsión no borra la fila —es justo la fila lo que sostiene el veto, ver
+        ``Participant.removed_at``—, así que cualquier sitio que dibuje, cuente o
+        promedie la mesa tiene que pasar por aquí. Usar ``self.participants`` a secas
+        resucita al expulsado en esa pantalla.
+        """
+        return self.participants.filter(removed_at__isnull=True)
+
     def close_room(self):
         """Transitions the room to a closed state, preventing further interaction."""
         if self.status != 'closed':
@@ -84,7 +103,7 @@ class PokerRoom(models.Model):
         """
         self.voting_status = 'voting'
         self.save(update_fields=['voting_status'])
-        self.participants.update(current_vote=None, throws_this_round=0)
+        self.active_participants.update(current_vote=None, throws_this_round=0)
 
     def __str__(self):
         return f"{self.name} ({self.public_id})"
@@ -157,6 +176,15 @@ class Participant(models.Model):
         help_text="Index into the seat palette. Null means derive one."
     )
     joined_at = models.DateTimeField(auto_now_add=True)
+    removed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Cuándo el facilitador expulsó a esta persona. La fila no se borra: es "
+            "ella la que sostiene el veto, porque guarda el guest_token (o el usuario) "
+            "con el que esa persona volvería a entrar."
+        )
+    )
     connection_count = models.PositiveIntegerField(default=0)
     last_reminded_at = models.DateTimeField(null=True, blank=True)
     last_throw_at = models.DateTimeField(
@@ -169,6 +197,10 @@ class Participant(models.Model):
 
     class Meta:
         unique_together = ('room', 'user')  # A registered user can only join a room once
+
+    @property
+    def is_removed(self):
+        return self.removed_at is not None
 
     @property
     def identity(self):

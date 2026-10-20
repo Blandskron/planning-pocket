@@ -160,7 +160,7 @@ def test_the_deck_is_a_fan_not_a_row(live_server, page, table):
                 cards[0].getBoundingClientRect().right
         };
     }""")
-    assert fan["count"] == 13
+    assert fan["count"] == 8, "la baraja por defecto son ocho cartas"
     assert fan["distinctTransforms"] > 1, "every card carries the same rotation: the fan is flat"
     assert fan["overlapping"], "cards do not overlap: this is a row, not a hand"
 
@@ -575,3 +575,212 @@ def test_a_phone_never_scrolls_sideways(live_server, page, table):
     assert phone["ovalHidden"] and phone["seatsAreAStrip"] and phone["stripScrolls"]
     assert phone["everySeatReachable"] == 8
     assert phone["tallyStillThere"] == "5 de 8 han votado"
+
+
+# --------------------------------------------------------------------------- #
+# La carcasa móvil. Por debajo de 821px la web deja de comportarse como una
+# página: la navegación baja al pulgar y la baraja se ancla al borde inferior.
+# Lo que se protege aquí es que ninguna de las dos tape lo que hay debajo.
+# --------------------------------------------------------------------------- #
+
+def sign_in(live_server, page, table, width=390, height=844):
+    """Sign in as the facilitator and land on the dashboard."""
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{live_server.url}/accounts/login/")
+    page.fill("[name=username]", "facilitator")
+    page.fill("[name=password]", PASSWORD)
+    page.click("main form button[type=submit]")
+    page.wait_for_selector(".app-tabbar")
+
+
+def test_a_phone_navigates_from_the_tab_bar_not_the_header(live_server, page, table):
+    """Los enlaces del encabezado se ocultan en pantalla pequeña.
+
+    Antes de la barra de pestañas eso dejaba al usuario de teléfono sin forma de
+    crear una sala ni de cerrar sesión: desaparecían y no reaparecían en ningún
+    sitio. La barra es el sitio.
+    """
+    sign_in(live_server, page, table)
+
+    shell = page.evaluate("""() => {
+        const bar = document.querySelector('.app-tabbar');
+        const items = [...bar.querySelectorAll('.tab-item')];
+        return {
+            headerNavHidden: [...document.querySelectorAll('.site-nav .nav-link')]
+                .filter(a => a.checkVisibility()).length === 0,
+            barShown: bar.checkVisibility(),
+            labels: items.map(i => i.querySelector('span').textContent.trim()),
+            /* 44px es el objetivo táctil mínimo; por debajo se falla el toque. */
+            allThumbSized: items.every(i => i.getBoundingClientRect().height >= 44),
+            current: items.filter(i => i.getAttribute('aria-current') === 'page')
+                .map(i => i.querySelector('span').textContent.trim()),
+            /* Fijada abajo y por delante del contenido, no empujada fuera. */
+            dockedToTheBottom: Math.abs(
+                bar.getBoundingClientRect().bottom - window.innerHeight) <= 1,
+            footerNotCovered:
+                document.querySelector('.site-footer').getBoundingClientRect().bottom
+                <= bar.getBoundingClientRect().top + 1
+        };
+    }""")
+
+    assert shell["headerNavHidden"], "los enlaces del encabezado siguen visibles en el teléfono"
+    assert shell["barShown"]
+    assert shell["labels"] == ["Mis salas", "Nueva sala", "Salir"]
+    assert shell["allThumbSized"], "una pestaña es más baja que el objetivo táctil mínimo"
+    assert shell["current"] == ["Mis salas"], "la barra no marca dónde estás"
+    assert shell["dockedToTheBottom"]
+    assert shell["footerNotCovered"], "la barra tapa el final de la página"
+
+
+def test_the_hand_is_docked_to_the_bottom_edge_of_a_phone(live_server, page, table):
+    """La baraja es la acción de esta pantalla, así que vive bajo el pulgar.
+
+    Anclarla sólo sirve si la página reserva su altura: si no, la última fila de
+    la mesa queda permanentemente debajo de la hoja y no hay scroll que la saque.
+    """
+    table["seat"](7, votes=["8", "5", None, "8", None, "13", "8"])
+    enter_room(live_server, page, table, width=390, height=844)
+
+    hand = page.evaluate("""() => {
+        const deck = document.getElementById('room-deck-wrap');
+        const box = deck.getBoundingClientRect();
+        const shell = document.querySelector('.room-shell');
+        return {
+            docked: getComputedStyle(deck).position === 'fixed',
+            atTheBottom: Math.abs(box.bottom - window.innerHeight) <= 1,
+            fullWidth: box.left <= 1 && Math.abs(box.right - window.innerWidth) <= 1,
+            /* La altura real de la hoja llega al CSS medida, no adivinada. */
+            heightReported: parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--deck-dock-height')),
+            heightMeasured: box.height,
+            spaceReserved: parseFloat(getComputedStyle(shell).paddingBottom) >= box.height - 1,
+            tabbarOutOfTheWay: !document.querySelector('.app-tabbar').checkVisibility(),
+            everyCardReachable: [...document.querySelectorAll('.poker-card')]
+                .every(c => c.getBoundingClientRect().bottom <= window.innerHeight + 1)
+        };
+    }""")
+
+    assert hand["docked"] and hand["atTheBottom"] and hand["fullWidth"]
+    assert abs(hand["heightReported"] - hand["heightMeasured"]) <= 1, (
+        "el hueco reservado se calculó a ojo en vez de medir la hoja"
+    )
+    assert hand["spaceReserved"], "la hoja tapa el final de la mesa y no hay scroll que lo salve"
+    assert hand["tabbarOutOfTheWay"], "dos barras compitiendo por el borde inferior"
+    assert hand["everyCardReachable"]
+
+
+def test_the_desktop_keeps_the_hand_in_flow_and_the_tab_bar_away(live_server, page, table):
+    """La carcasa es para el teléfono. En un escritorio no debe aparecer nada."""
+    enter_room(live_server, page, table)
+
+    desktop = page.evaluate("""() => ({
+        deckInFlow: getComputedStyle(document.getElementById('room-deck-wrap')).position
+            === 'static',
+        tabbarHidden: !document.querySelector('.app-tabbar').checkVisibility(),
+        dockHeight: getComputedStyle(document.documentElement)
+            .getPropertyValue('--deck-dock-height').trim()
+    })""")
+
+    assert desktop["deckInFlow"] and desktop["tabbarHidden"]
+    assert desktop["dockHeight"] == "0px", "el escritorio reserva hueco para una hoja que no existe"
+
+
+# --------------------------------------------------------------------------- #
+# Moderación en la mesa: la baraja y el botón de expulsar. El despacho por
+# WebSocket lo cubren los tests del consumer; aquí se protege lo que sólo se ve
+# midiendo el DOM real.
+# --------------------------------------------------------------------------- #
+
+def test_the_expel_button_never_changes_the_size_of_a_seat(live_server, page, table):
+    """La regresión que este test existe para impedir.
+
+    Todo lo que se añade al asiento tiene que estar fuera de su flujo: el anillo se
+    dimensiona a partir del asiento más alto, así que un solo elemento en flujo
+    —incluso un nodo de texto suelto— agranda todos los asientos y los amontona en
+    el centro. Comparar contra el asiento propio, que nunca lleva el botón, es lo
+    que convierte eso en un fallo legible.
+    """
+    table["seat"](4)
+    enter_room(live_server, page, table)
+
+    report = page.evaluate("""() => {
+        const seats = [...document.querySelectorAll('.table-seat')];
+        const mine = seats.find(s => s.classList.contains('is-me'));
+        const others = seats.filter(s => !s.classList.contains('is-me'));
+        const height = el => Math.round(el.getBoundingClientRect().height);
+        return {
+            buttons: document.querySelectorAll('.seat-remove').length,
+            onMyOwnSeat: !!mine.querySelector('.seat-remove'),
+            allAbsolute: [...document.querySelectorAll('.seat-remove')]
+                .every(b => getComputedStyle(b).position === 'absolute'),
+            allLabelled: [...document.querySelectorAll('.seat-remove')]
+                .every(b => !!b.getAttribute('aria-label')),
+            nestedButtons: document.querySelectorAll('button button').length,
+            myHeight: height(mine),
+            otherHeights: [...new Set(others.map(height))],
+            /* Una fila de rejilla de más es la firma exacta del fallo. */
+            myRows: getComputedStyle(mine).gridTemplateRows.split(' ').length,
+            otherRows: getComputedStyle(others[0]).gridTemplateRows.split(' ').length
+        };
+    }""")
+
+    assert report["buttons"] == 4, "el facilitador no puede expulsar a todo el mundo menos a sí"
+    assert not report["onMyOwnSeat"], "el facilitador podía expulsarse a sí mismo desde la mesa"
+    assert report["allAbsolute"] and report["allLabelled"]
+    assert report["nestedButtons"] == 0
+    assert report["otherHeights"] == [report["myHeight"]], (
+        "el asiento con botón mide distinto que el asiento sin botón: algo quedó en flujo"
+    )
+    assert report["otherRows"] == report["myRows"], (
+        f"el asiento con botón tiene {report['otherRows']} filas y el propio "
+        f"{report['myRows']}: hay un ítem de rejilla que no debería existir"
+    )
+
+
+def test_a_guest_never_sees_the_expel_button(live_server, page, table):
+    guests = table["seat"](2)
+    room = table["room"]
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.goto(f"{live_server.url}/p/{room.public_id}/")
+    page.fill("[name=display_name]", "Invitada")
+    page.click("main form button[type=submit]")
+    page.wait_for_selector(".table-seat")
+
+    assert page.locator(".seat-remove").count() == 0, "un invitado podía expulsar gente"
+    assert page.locator("#deck-switch").count() == 0, "un invitado podía cambiar la baraja"
+    assert len(guests) == 2
+
+
+def test_the_hand_is_redealt_whole_when_the_deck_changes(live_server, page, table):
+    """La mano se reconstruye entera a propósito: el abanico depende de la posición
+    de cada carta sobre el total, así que añadir cartas sueltas deja los ángulos de
+    la mano anterior."""
+    enter_room(live_server, page, table)
+
+    before = page.evaluate("""() => ({
+        count: document.querySelectorAll('.poker-card').length,
+        values: [...document.querySelectorAll('.poker-card span')].map(s => s.textContent)
+    })""")
+    assert before["count"] == 8
+    assert before["values"] == ["0", "1", "2", "3", "5", "8", "13", "?"]
+
+    after = page.evaluate("""() => {
+        renderDeck(['0','1','2','3','5','8','13','21','34','55','89','?','Coffee']);
+        const cards = [...document.querySelectorAll('.poker-card')];
+        return {
+            count: cards.length,
+            distinctTransforms: new Set(cards.map(c => getComputedStyle(c).transform)).size,
+            totals: new Set(cards.map(c => c.style.getPropertyValue('--card-total'))).size,
+            coffeeIsNarrowed: cards[cards.length - 1].classList.contains('is-wide-value'),
+            labelled: cards.every(c => !!c.getAttribute('aria-label')),
+            pressable: cards.every(c => c.hasAttribute('aria-pressed')),
+            overlapping: cards[1].getBoundingClientRect().left
+                < cards[0].getBoundingClientRect().right
+        };
+    }""")
+
+    assert after["count"] == 13
+    assert after["totals"] == 1, "quedaron cartas con el total de la mano anterior"
+    assert after["distinctTransforms"] > 1 and after["overlapping"], "la mano dejó de ser abanico"
+    assert after["coffeeIsNarrowed"], "el café volvió a desbordar su carta"
+    assert after["labelled"] and after["pressable"]

@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
+from .decks import deck_values, is_expanded
 from .forms import GuestJoinForm, IssueForm, PokerRoomForm
 from .identity import COLOR_CHOICES, PETS
 from .models import Participant, PokerRoom
@@ -53,6 +54,8 @@ def room_detail(request, public_id):
             user=request.user,
             defaults={'display_name': request.user.username}
         )
+        if participant.is_removed:
+            return render(request, 'rooms/room_removed.html', {'room': room})
     else:
         # Handle guest
         guest_tokens = request.session.get('guest_tokens', {})
@@ -61,6 +64,10 @@ def room_detail(request, public_id):
         if room_token:
             # Check if participant exists
             participant = Participant.objects.filter(room=room, guest_token=room_token).first()
+            # El veto vive en la fila, no en la sesión: borrarla aquí sería dejar que
+            # la persona expulsada se readmita vaciando las cookies del navegador.
+            if participant and participant.is_removed:
+                return render(request, 'rooms/room_removed.html', {'room': room})
 
         if not participant:
             if request.method == 'POST':
@@ -80,8 +87,8 @@ def room_detail(request, public_id):
                 form = GuestJoinForm()
             return render(request, 'rooms/join_guest.html', {'room': room, 'form': form})
 
-    participants = room.participants.order_by('joined_at', 'id')
-    deck_cards = room.deck.split(',')
+    participants = room.active_participants.order_by('joined_at', 'id')
+    deck_cards = deck_values(room.deck)
     issues = room.issues.all().order_by('created_at')
 
     if is_owner and request.method == 'POST' and 'add_issue' in request.POST:
@@ -100,6 +107,7 @@ def room_detail(request, public_id):
         'participant': participant,
         'participants': participants,
         'deck_cards': deck_cards,
+        'deck_expanded': is_expanded(room.deck),
         'issues': issues,
         'issue_form': issue_form,
         'throwables': THROWABLES,

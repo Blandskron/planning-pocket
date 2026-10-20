@@ -1,56 +1,101 @@
-/* Planning Pocket visual system — light/dark, responsive and accessible. */
+/* Planning Pocket visual system — sistema de diseño Nxtara, claro/oscuro y responsive.
+
+   La capa `--nx-*` son las primitivas de marca de Nxtara: no se usan directamente en
+   los componentes. Debajo se traducen a los nombres semánticos que ya usaba la hoja
+   (`--surface`, `--accent`, `--felt`…), para que el tema se cambie en un solo sitio.
+
+   Nxtara es una marca oscura: el tema oscuro es la lectura canónica (campo azul →
+   violeta → ciruela con rosa como única acción) y el claro es su traducción a papel,
+   con la misma acción rosa y la misma tinta índigo. */
 :root {
+  /* Primitivas de marca */
+  --nx-rosa: #ed117b;
+  --nx-rosa-clara: #ff4da3;
+  --nx-rosa-honda: #7d0a41;
+  --nx-azul: #12154e;
+  --nx-azul-profundo: #050a2a;
+  --nx-campo-azul-inicio: #202b70;
+  --nx-campo-azul-fin: #302665;
+  --nx-campo-violeta: #3b246f;
+  --nx-campo-ciruela: #64104f;
+  --nx-noche: #2b0d33;
+  --nx-verde: #34d399;
+  --nx-ambar: #fbbf24;
+  --nx-rojo: #fb7185;
+
   color-scheme: light;
-  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: Manrope, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
-  --bg: #f5f4ef;
-  --bg-soft: #efede6;
-  --surface: #fffefa;
+  --bg: #f3f2fb;
+  --bg-soft: #eae7f8;
+  --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-hover: #f2f0e9;
-  --surface-inset: #e9e7df;
-  --text: #17201c;
-  --text-soft: #34453e;
-  --muted: #66736d;
-  --border: #d8d8cf;
-  --border-strong: #b8beb8;
+  --surface-hover: #f4f1fd;
+  --surface-inset: #f1eefb;
+  --text: #16103a;
+  --text-soft: #3b3470;
+  --muted: #6c6799;
+  --border: #e2def3;
+  --border-strong: #c2bbe6;
 
-  --primary: #183f36;
-  --primary-hover: #0f332b;
-  --primary-soft: #e0eee8;
+  /* El rosa es la única acción del sistema: botón, enlace, carta elegida.
+     `--brand` es el rosa de marca sin compromisos y sólo decora (brillos, bordes,
+     reversos); `--accent` es el que lleva texto encima y por eso está rebajado
+     hasta pasar AA sobre blanco. */
+  --brand: #ed117b;
+  --brand-bright: #ff4da3;
+  --primary: #c7005f;
+  --primary-hover: #a30450;
+  --primary-soft: #fde3ef;
   --primary-contrast: #ffffff;
-  --accent: #9f4528;
-  --accent-hover: #84351f;
-  --accent-soft: #fae7de;
+  --accent: #c7005f;
+  --accent-hover: #a30450;
+  --accent-soft: #fde3ef;
   --accent-contrast: #ffffff;
-  --success: #23785d;
-  --success-soft: #dff1e9;
-  --warning: #9b6815;
-  --warning-soft: #f8edd6;
-  --danger: #b43c43;
-  --danger-soft: #f9e2e3;
+  --success: #0a6549;
+  --success-soft: #ddf4ec;
+  --warning: #8a5a05;
+  --warning-soft: #fcefd6;
+  --danger: #bd2949;
+  --danger-soft: #fbe3e8;
 
-  --felt: #24594d;
-  --felt-deep: #153f36;
-  --felt-line: rgba(255, 255, 255, 0.17);
-  --felt-text: rgba(255, 255, 255, 0.62);
-  --card-face: #fffdf7;
-  --card-ink: #17201c;
+  /* El paño es violeta Nxtara en los dos temas: los asientos siempre caen sobre
+     él, así que su paleta no tiene que cambiar con el tema. */
+  --felt: #4a2a7d;
+  --felt-deep: #251456;
+  --felt-line: rgba(255, 255, 255, 0.18);
+  --felt-text: rgba(255, 255, 255, 0.66);
+  --card-face: #fdf7fb;
+  --card-ink: #1a1040;
 
-  --shadow-xs: 0 1px 2px rgba(22, 33, 28, 0.06);
-  --shadow-sm: 0 4px 14px rgba(22, 33, 28, 0.07);
-  --shadow-md: 0 16px 38px rgba(22, 33, 28, 0.10);
-  --shadow-lg: 0 30px 70px rgba(22, 33, 28, 0.16);
-  --focus: #cb5e37;
+  --shadow-xs: 0 1px 2px rgba(22, 16, 58, 0.07);
+  --shadow-sm: 0 6px 18px rgba(22, 16, 58, 0.08);
+  --shadow-md: 0 20px 44px rgba(22, 16, 58, 0.13);
+  --shadow-lg: 0 26px 54px rgba(22, 16, 58, 0.18);
+  --ring: 0 0 0 3px rgba(237, 17, 123, 0.22);
+  --focus: #c7005f;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 26px;
+  /* Radios de Nxtara: control 14, tarjeta 22, panel 28. */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
   --radius-pill: 999px;
-  --content: 1240px;
+  --content: 1180px;
   --header-height: 76px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 0.18s;
+  --dur-mid: 0.35s;
+
+  /* El campo de la página. Un solo token para que header, pie y barra inferior
+     puedan teñirse del mismo degradado en lugar de adivinar un color plano. */
+  --page-backdrop:
+    radial-gradient(900px 520px at 8% -8%, rgba(237, 17, 123, 0.10), transparent 62%),
+    radial-gradient(780px 460px at 94% 2%, rgba(99, 33, 126, 0.12), transparent 60%),
+    linear-gradient(170deg, #f6f4fd 0%, #f1effb 52%, #f7eef6 100%);
+  --chrome: rgba(255, 255, 255, 0.78);
 
   /* Stage layers. Declared once so anything added to the table stacks
      predictably instead of guessing a z-index. */
@@ -64,76 +109,91 @@
 
   /* Seat palette. Shared by both themes because seats always sit on the felt,
      which is dark either way. Indexes match rooms/identity.COLOR_COUNT. */
-  --seat-hue-0: #e08a4f;
-  --seat-hue-1: #7fb6a0;
-  --seat-hue-2: #d9a15c;
-  --seat-hue-3: #8fa8d8;
-  --seat-hue-4: #cf7f7f;
-  --seat-hue-5: #a5c47a;
-  --seat-hue-6: #c2a0cc;
+  --seat-hue-0: #ff8fc3;
+  --seat-hue-1: #5ee0c0;
+  --seat-hue-2: #fbbf24;
+  --seat-hue-3: #7aa7ff;
+  --seat-hue-4: #ff9a7b;
+  --seat-hue-5: #b79bff;
+  --seat-hue-6: #4fd1e9;
 
   /* Throwable objects. The colour is only used for the mark left on the felt. */
-  --item-tomate: #c0402c;
-  --item-papel: #cfc7ae;
-  --item-cafe: #6b4326;
-  --item-almohada: #8fa8c8;
-  --item-sello: #256d55;
-  --item-zapatilla: #4a5d6e;
+  --item-tomate: #e0455c;
+  --item-papel: #e4def2;
+  --item-cafe: #a2704a;
+  --item-almohada: #8fb3e8;
+  --item-sello: #34d399;
+  --item-zapatilla: #7c7fb8;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #101512;
-  --bg-soft: #151c18;
-  --surface: #19211d;
-  --surface-raised: #1e2823;
-  --surface-hover: #26312c;
-  --surface-inset: #121915;
-  --text: #f0f2ed;
-  --text-soft: #cbd2cc;
-  --muted: #9ca8a1;
-  --border: #34423b;
-  --border-strong: #506159;
+  --bg: #1a1a56;
+  --bg-soft: #221c5c;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-raised: rgba(255, 255, 255, 0.09);
+  --surface-hover: rgba(255, 255, 255, 0.13);
+  --surface-inset: rgba(5, 10, 42, 0.42);
+  --text: #ffffff;
+  --text-soft: rgba(255, 255, 255, 0.72);
+  --muted: rgba(255, 255, 255, 0.58);
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.3);
 
-  --primary: #8ed6bb;
-  --primary-hover: #a8e5ce;
-  --primary-soft: #213c33;
-  --primary-contrast: #102a22;
-  --accent: #ed916c;
-  --accent-hover: #f2aa8d;
-  --accent-soft: #432a21;
-  --accent-contrast: #27130b;
-  --success: #80d2b2;
-  --success-soft: #1f3c32;
-  --warning: #efbd68;
-  --warning-soft: #3b3020;
-  --danger: #f28b91;
-  --danger-soft: #402529;
+  /* El rosa de acción aquí es claro, no el de marca: sobre las superficies
+     translúcidas del tema oscuro, #ff6cb2 se quedaba en 4,47:1 y no llegaba a
+     AA. Y `--accent-soft` es una pastilla de ciruela opaca en vez de un velo
+     rosa, porque un velo sobre el paño sube el fondo y hunde el contraste del
+     texto que lleva encima. */
+  --primary: #ff80bd;
+  --primary-hover: #ffa3d1;
+  --primary-soft: rgba(125, 10, 65, 0.55);
+  --primary-contrast: #2b0010;
+  --accent: #ff80bd;
+  --accent-hover: #ffa3d1;
+  --accent-soft: rgba(125, 10, 65, 0.55);
+  --accent-contrast: #2b0010;
+  --success: #5ee0c0;
+  --success-soft: rgba(52, 211, 153, 0.16);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.16);
+  --danger: #fb7185;
+  --danger-soft: rgba(251, 113, 133, 0.16);
 
-  --felt: #1d5144;
-  --felt-deep: #11372e;
-  --felt-line: rgba(255, 255, 255, 0.14);
-  --felt-text: rgba(255, 255, 255, 0.58);
-  --card-face: #edf1e9;
-  --card-ink: #17201c;
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.22);
-  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 30px 75px rgba(0, 0, 0, 0.42);
-  --focus: #ffaf8f;
+  --felt: #3b246f;
+  --felt-deep: #1b1150;
+  --felt-line: rgba(255, 255, 255, 0.16);
+  --felt-text: rgba(255, 255, 255, 0.62);
+  --card-face: #f6eef5;
+  --card-ink: #1a1040;
+
+  --shadow-xs: 0 1px 2px rgba(3, 2, 16, 0.4);
+  --shadow-sm: 0 10px 26px rgba(6, 4, 26, 0.34);
+  --shadow-md: 0 20px 44px rgba(6, 4, 26, 0.42);
+  --shadow-lg: 0 26px 54px rgba(6, 4, 26, 0.52);
+  --ring: 0 0 0 3px rgba(255, 77, 163, 0.32);
+  --focus: #ff4da3;
+
+  --page-backdrop:
+    radial-gradient(1100px 600px at 10% -12%, rgba(237, 17, 123, 0.20), transparent 62%),
+    radial-gradient(900px 520px at 92% 0%, rgba(123, 39, 141, 0.38), transparent 64%),
+    linear-gradient(168deg, #202b70 0%, #23275f 40%, #302665 68%, #2b0d33 100%);
+  --chrome: rgba(16, 18, 62, 0.72);
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; scroll-behavior: smooth; }
+html { min-width: 320px; scroll-behavior: smooth; background: var(--bg); }
 body {
-  min-height: 100vh;
+  /* 100dvh, no 100vh: en un navegador móvil la barra de direcciones se recoge al
+     hacer scroll y con 100vh la carcasa queda siempre un poco más alta que la
+     pantalla, que es justo lo que delata que no es una app. */
+  min-height: 100dvh;
   margin: 0;
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
   color: var(--text);
-  background:
-    radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28rem),
-    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 24rem),
-    var(--bg);
+  background: var(--page-backdrop) var(--bg) fixed;
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.55;
@@ -146,15 +206,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 a { color: var(--primary); text-underline-offset: 0.18em; }
 img, svg { display: block; max-width: 100%; }
 h1, h2, h3, p { margin-top: 0; }
-h1, h2, h3 { color: var(--text); line-height: 1.12; letter-spacing: -0.035em; }
-h1 { font-size: clamp(2rem, 5vw, 3.35rem); }
-h2 { font-size: clamp(1.4rem, 3vw, 2rem); }
-h3 { font-size: 1.08rem; }
+h1, h2, h3 { color: var(--text); font-family: var(--font-display); line-height: 1.1; letter-spacing: -0.035em; }
+h1 { font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 800; }
+h2 { font-size: clamp(1.45rem, 3vw, 2.1rem); font-weight: 700; letter-spacing: -0.025em; }
+h3 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
 [hidden] { display: none !important; }
 
 :focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
+  box-shadow: var(--ring);
 }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -171,123 +232,137 @@ h3 { font-size: 1.08rem; }
 /* App chrome */
 .site-header {
   position: sticky; top: 0; z-index: 100;
-  min-height: var(--header-height); padding: 0.75rem max(1rem, calc((100vw - var(--content)) / 2));
+  min-height: var(--header-height);
+  padding: 0.75rem max(1rem, calc((100vw - var(--content)) / 2));
+  padding-top: max(0.75rem, env(safe-area-inset-top));
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
+  background: var(--chrome);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
-.site-brand { display: inline-flex; align-items: center; gap: 0.75rem; min-width: 0; color: var(--text); text-decoration: none; }
+.site-brand { display: inline-flex; align-items: center; gap: 0.7rem; min-width: 0; color: var(--text); text-decoration: none; }
+/* La insignia de Nxtara: un disco radial rosa con resplandor, no un cuadrado plano. */
 .brand-mark {
   position: relative; display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px;
-  border-radius: 13px; color: var(--primary-contrast); background: var(--primary); box-shadow: var(--shadow-sm);
-  transform: rotate(-4deg);
+  border-radius: 50%; color: #ffffff;
+  background: radial-gradient(circle at 50% 32%, var(--brand-bright) 0%, var(--brand) 46%, #7d0a41 100%);
+  box-shadow: 0 0 20px 4px rgba(237, 17, 123, 0.34), inset 0 -8px 16px rgba(0, 0, 0, 0.28), inset 0 6px 14px rgba(255, 255, 255, 0.16);
 }
-.brand-mark::after { content: ''; position: absolute; inset: 4px; border: 1px solid color-mix(in srgb, var(--primary-contrast) 42%, transparent); border-radius: 9px; }
-.brand-mark span { z-index: 1; font-size: 1.05rem; font-weight: 900; }
+.brand-mark::after { content: ''; position: absolute; inset: -3px; border: 1px solid rgba(237, 17, 123, 0.5); border-radius: 50%; }
+.brand-mark span { z-index: 1; font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; }
 .brand-copy { display: grid; min-width: 0; line-height: 1.1; }
-.brand-copy strong { font-size: 1rem; letter-spacing: -0.025em; }
-.brand-copy small { margin-top: 0.24rem; color: var(--muted); font-size: 0.68rem; letter-spacing: 0.03em; }
-.site-nav { display: flex; align-items: center; justify-content: flex-end; gap: 0.45rem; }
-.nav-link { min-height: 44px; padding: 0.65rem 0.75rem; display: inline-flex; align-items: center; border-radius: var(--radius-sm); color: var(--text-soft); font-size: 0.86rem; font-weight: 700; text-decoration: none; }
+.brand-copy strong { font-family: var(--font-display); font-size: 1rem; font-weight: 800; letter-spacing: -0.03em; }
+.brand-copy small { margin-top: 0.26rem; color: var(--muted); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.site-nav { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; }
+.nav-link { min-height: 44px; padding: 0.65rem 0.9rem; display: inline-flex; align-items: center; border-radius: var(--radius-pill); color: var(--text-soft); font-size: 0.86rem; font-weight: 700; text-decoration: none; transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .nav-link:hover { color: var(--text); background: var(--surface-hover); }
 .nav-form { display: flex; margin: 0; }
 .nav-button { border: 0; cursor: pointer; background: transparent; }
-.user-chip { height: 40px; padding: 0.25rem 0.65rem 0.25rem 0.25rem; display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); }
-.user-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--primary-contrast); background: var(--primary); font-size: 0.72rem; font-weight: 800; }
+.user-chip { height: 40px; padding: 0.25rem 0.75rem 0.25rem 0.25rem; display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); }
+.user-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #ffffff; background: linear-gradient(160deg, var(--brand-bright), var(--brand)); font-size: 0.72rem; font-weight: 800; }
 .user-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; color: var(--text-soft); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 .icon-button {
   width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
   border: 1px solid var(--border); border-radius: 50%; color: var(--text-soft); background: var(--surface); cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .icon-button:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
 .theme-icon { grid-area: 1 / 1; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: opacity 0.15s, transform 0.2s; }
 :root[data-theme="light"] .theme-icon-sun, :root[data-theme="dark"] .theme-icon-moon { opacity: 0; transform: scale(0.55) rotate(-40deg); }
 :root[data-theme="light"] .theme-icon-moon, :root[data-theme="dark"] .theme-icon-sun { opacity: 1; transform: scale(1) rotate(0); }
 
-.page-shell { width: min(100% - 2rem, var(--content)); min-height: calc(100vh - 160px); margin: 0 auto; padding: clamp(2rem, 5vw, 4.5rem) 0; }
+.page-shell { width: min(100% - 2rem, var(--content)); flex: 1 0 auto; margin: 0 auto; padding: clamp(2rem, 5vw, 4.5rem) 0; }
 .room-shell { width: min(100% - 2rem, 1540px); padding-top: 1.25rem; }
 .narrow-shell { width: min(100% - 2rem, 980px); display: grid; align-items: center; }
 .auth-shell { width: min(100% - 2rem, 1080px); display: grid; align-items: center; }
-.site-footer { min-height: 74px; padding: 1.25rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; color: var(--muted); font-size: 0.73rem; }
-.site-footer span:first-child { color: var(--text-soft); font-weight: 800; }
+.site-footer { min-height: 74px; padding: 1.25rem; padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; color: var(--muted); font-size: 0.73rem; }
+.site-footer span:first-child { color: var(--text-soft); font-family: var(--font-display); font-weight: 800; }
 
-/* Common components */
+/* Common components. Nxtara no tiene botones rectangulares: la acción es una
+   píldora rosa y el resto son píldoras de contorno sobre la superficie. */
 .button, button.button {
-  min-height: 46px; padding: 0.72rem 1.1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
-  border: 1px solid transparent; border-radius: 11px; box-shadow: none; cursor: pointer;
-  font-size: 0.88rem; font-weight: 780; line-height: 1.1; text-decoration: none; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  min-height: 48px; padding: 0.78rem 1.4rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  border: 1px solid transparent; border-radius: var(--radius-pill); box-shadow: none; cursor: pointer;
+  font-size: 0.88rem; font-weight: 750; line-height: 1.1; text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.button-primary { color: var(--primary-contrast); background: var(--primary); }
-.button-primary:hover { color: var(--primary-contrast); background: var(--primary-hover); box-shadow: var(--shadow-sm); }
-.button-secondary { color: var(--text); border-color: var(--border); background: var(--surface); }
-.button-secondary:hover { border-color: var(--border-strong); background: var(--surface-hover); }
-.button-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 42%, var(--border)); background: var(--surface); }
+.button-primary { color: var(--primary-contrast); background: var(--primary); box-shadow: 0 10px 24px rgba(237, 17, 123, 0.26); }
+.button-primary:hover { color: var(--primary-contrast); background: var(--primary-hover); box-shadow: 0 14px 30px rgba(237, 17, 123, 0.34); }
+.button-secondary { color: var(--text); border-color: var(--border-strong); background: var(--surface); }
+.button-secondary:hover { border-color: var(--accent); background: var(--surface-hover); }
+.button-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: var(--surface); }
 .button-danger:hover { background: var(--danger-soft); }
 .button-block { width: 100%; }
 .is-loading { cursor: progress; opacity: 0.72; }
-.eyebrow { display: block; margin-bottom: 0.65rem; color: var(--accent); font-size: 0.7rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
-.eyebrow-light { color: #b7e6d5; }
+/* El marco de sección de Nxtara: versalitas muy espaciadas, en rosa. */
+.eyebrow { display: block; margin-bottom: 0.7rem; color: var(--accent); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+/* El panel de marca es oscuro en los dos temas, así que su rótulo tampoco puede
+   salir de un token de tema ni del rosa de marca: `--brand-bright` sobre el
+   campo azul da 4,1:1. Este rosa es relativo al panel, como la tinta de la
+   carta lo es a la carta. */
+.eyebrow-light { color: #ff9ac9; }
 .back-link { min-height: 44px; margin: -0.5rem 0 1.4rem; display: inline-flex; align-items: center; color: var(--muted); font-size: 0.82rem; font-weight: 700; text-decoration: none; }
 .back-link:hover { color: var(--text); }
 
 /* Forms */
 .stack-form { display: grid; gap: 0.9rem; margin-top: 1.7rem; }
 .stack-form p { margin: 0; }
-label { display: block; margin-bottom: 0.4rem; color: var(--text-soft); font-size: 0.8rem; font-weight: 750; }
+label { display: block; margin-bottom: 0.4rem; color: var(--text-soft); font-size: 0.8rem; font-weight: 700; }
 input, textarea, select {
-  width: 100%; min-height: 48px; margin: 0; padding: 0.72rem 0.85rem;
-  border: 1px solid var(--border); border-radius: 10px; outline: 0;
+  width: 100%; min-height: 50px; margin: 0; padding: 0.78rem 1rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md); outline: 0;
   color: var(--text); background: var(--surface-inset); caret-color: var(--accent);
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 textarea { min-height: 84px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 82%, transparent); }
-input:focus, textarea:focus, select:focus { border-color: var(--focus); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent); }
+input:focus, textarea:focus, select:focus { border-color: var(--brand-bright); background: var(--surface); box-shadow: var(--ring); }
 .helptext { display: block; margin-top: 0.4rem; color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
 .helptext ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
-.errorlist { margin: 0 0 0.45rem; padding: 0.65rem 0.8rem; list-style: none; border: 1px solid color-mix(in srgb, var(--danger) 36%, transparent); border-radius: 9px; color: var(--danger); background: var(--danger-soft); font-size: 0.76rem; font-weight: 650; }
+.errorlist { margin: 0 0 0.45rem; padding: 0.65rem 0.9rem; list-style: none; border: 1px solid color-mix(in srgb, var(--danger) 36%, transparent); border-radius: var(--radius-md); color: var(--danger); background: var(--danger-soft); font-size: 0.76rem; font-weight: 650; }
 
 /* Dashboard */
 .page-heading { margin-bottom: clamp(2rem, 6vw, 4.25rem); display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; }
 .page-heading h1 { margin-bottom: 0.55rem; }
 .page-heading p { max-width: 550px; margin-bottom: 0; color: var(--muted); }
-.room-collection { padding: clamp(1.1rem, 3vw, 1.8rem); border: 1px solid var(--border); border-radius: var(--radius-xl); background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-sm); }
+.room-collection { padding: clamp(1.1rem, 3vw, 2rem); border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), var(--shadow-sm); }
 .section-heading { margin-bottom: 1.2rem; display: flex; align-items: center; justify-content: space-between; }
-.section-heading h2 { margin-bottom: 0.25rem; font-size: 1.1rem; }
+.section-heading h2 { margin-bottom: 0.25rem; font-size: 1.15rem; }
 .section-heading p { margin: 0; color: var(--muted); font-size: 0.76rem; }
 .dashboard-room-grid { margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; list-style: none; }
-.dashboard-room-card { min-height: 132px; padding: 1rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text); background: var(--surface-raised); text-decoration: none; transition: border-color 0.15s, box-shadow 0.2s, transform 0.2s; }
-.dashboard-room-card:hover { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); box-shadow: var(--shadow-md); transform: translateY(-2px); }
-.mini-card-stack { position: relative; display: grid; place-items: center; width: 52px; height: 72px; border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 10px; color: var(--primary-contrast); background: var(--primary); box-shadow: 4px 4px 0 var(--primary-soft); font-family: var(--font-mono); font-size: 1.15rem; font-weight: 850; }
-.mini-card-stack::after { content: ''; position: absolute; inset: 5px; border: 1px solid color-mix(in srgb, var(--primary-contrast) 30%, transparent); border-radius: 6px; }
+.dashboard-room-card { min-height: 132px; padding: 1.1rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text); background: var(--surface-raised); text-decoration: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-mid) var(--ease), transform var(--dur-mid) var(--ease); }
+.dashboard-room-card:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); box-shadow: var(--shadow-md), 0 0 0 1px rgba(237, 17, 123, 0.14); transform: translateY(-3px); }
+.mini-card-stack { position: relative; display: grid; place-items: center; width: 52px; height: 72px; border: 1px solid rgba(237, 17, 123, 0.45); border-radius: var(--radius-md); color: #ffffff; background: linear-gradient(170deg, var(--brand-bright), var(--brand) 55%, #7d0a41); box-shadow: 0 10px 22px rgba(237, 17, 123, 0.28); font-family: var(--font-mono); font-size: 1.15rem; font-weight: 850; }
+.mini-card-stack::after { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(255, 255, 255, 0.34); border-radius: 8px; }
 .mini-card-stack span { z-index: 1; }
 .dashboard-room-main { min-width: 0; display: grid; justify-items: start; }
-.dashboard-room-main strong { width: 100%; margin: 0.48rem 0 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.96rem; }
+.dashboard-room-main strong { width: 100%; margin: 0.48rem 0 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; }
 .dashboard-room-main small { color: var(--muted); font-size: 0.72rem; }
-.status-pill { padding: 0.2rem 0.48rem; display: inline-flex; align-items: center; gap: 0.32rem; border-radius: var(--radius-pill); font-size: 0.65rem; font-weight: 780; }
+.status-pill { padding: 0.22rem 0.55rem; display: inline-flex; align-items: center; gap: 0.32rem; border-radius: var(--radius-pill); font-size: 0.65rem; font-weight: 780; }
 .status-pill span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-pill.is-active { color: var(--success); background: var(--success-soft); }
 .status-pill.is-closed { color: var(--muted); background: var(--surface-hover); }
 .dashboard-room-meta { display: grid; justify-items: end; align-self: stretch; align-content: space-between; }
 .dashboard-room-meta code { color: var(--muted); font-family: var(--font-mono); font-size: 0.65rem; }
-.card-arrow { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--primary); background: var(--primary-soft); font-size: 1.05rem; }
+.card-arrow { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--accent); background: var(--accent-soft); font-size: 1.05rem; }
 .empty-state { padding: clamp(2.5rem, 7vw, 5.5rem) 1rem; display: grid; justify-items: center; text-align: center; }
-.empty-card { width: 66px; height: 90px; margin-bottom: 1.4rem; display: grid; place-items: center; border: 2px dashed var(--border-strong); border-radius: 12px; color: var(--muted); font-family: var(--font-mono); font-size: 1.4rem; transform: rotate(4deg); }
+.empty-card { width: 66px; height: 90px; margin-bottom: 1.4rem; display: grid; place-items: center; border: 2px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); font-family: var(--font-mono); font-size: 1.4rem; transform: rotate(4deg); }
 .empty-state h3 { margin-bottom: 0.55rem; }
 .empty-state p { max-width: 480px; margin-bottom: 1.4rem; color: var(--muted); }
 
 /* Auth, join and focused forms */
-.auth-card, .form-card, .join-layout { overflow: hidden; display: grid; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-lg); }
+.auth-card, .form-card, .join-layout { overflow: hidden; display: grid; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-lg); }
 .auth-card { grid-template-columns: 0.92fr 1.08fr; }
-.auth-promise { position: relative; min-height: 600px; padding: clamp(2rem, 5vw, 4rem); overflow: hidden; color: #eaf4ef; background: radial-gradient(circle at 100% 0, rgba(240, 150, 112, 0.24), transparent 42%), linear-gradient(145deg, #24594d, #11372e); }
+/* El panel de marca: campo azul → violeta de Nxtara con el resplandor rosa arriba. */
+.auth-promise { position: relative; min-height: 600px; padding: clamp(2rem, 5vw, 4rem); overflow: hidden; color: #ffffff; background: radial-gradient(circle at 100% 0, rgba(237, 17, 123, 0.4), transparent 46%), linear-gradient(160deg, #202b70 0%, #23275f 52%, #302665 100%); }
 .auth-promise::before, .auth-promise::after { content: ''; position: absolute; border: 1px solid rgba(255,255,255,0.11); border-radius: 50%; }
 .auth-promise::before { width: 350px; height: 350px; right: -190px; bottom: -80px; }
 .auth-promise::after { width: 250px; height: 250px; right: -100px; bottom: -30px; }
-.auth-promise h1 { max-width: 440px; margin: 4rem 0 1.3rem; color: #ffffff; font-size: clamp(2.1rem, 4vw, 3.25rem); }
-.auth-promise p { max-width: 420px; color: #bed2ca; }
+.auth-promise h1 { max-width: 440px; margin: 4rem 0 1.3rem; color: #ffffff; font-size: clamp(2.1rem, 4vw, 3.4rem); }
+.auth-promise p { max-width: 420px; color: rgba(255, 255, 255, 0.72); }
 .auth-deck { position: absolute; left: clamp(2rem, 5vw, 4rem); bottom: 3rem; display: flex; }
-.auth-deck span { width: 74px; height: 104px; margin-left: -12px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.55); border-radius: 12px; color: #173f35; background: #f5f1e8; box-shadow: 0 12px 22px rgba(0,0,0,0.22); font-family: var(--font-mono); font-size: 1.35rem; font-weight: 850; transform: rotate(-8deg); }
+.auth-deck span { width: 74px; height: 104px; margin-left: -12px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.55); border-radius: var(--radius-md); color: #1a1040; background: #fdf7fb; box-shadow: 0 16px 30px rgba(6, 4, 26, 0.4); font-family: var(--font-mono); font-size: 1.35rem; font-weight: 850; transform: rotate(-8deg); }
 .auth-deck span:first-child { margin-left: 0; transform: rotate(-14deg) translateY(8px); }
 .auth-deck span:last-child { transform: rotate(2deg) translateY(6px); }
 .auth-form-wrap { padding: clamp(2rem, 6vw, 4.5rem); display: flex; flex-direction: column; justify-content: center; }
@@ -296,9 +371,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 .form-switch { margin-top: 1.5rem !important; color: var(--muted); font-size: 0.8rem; text-align: center; }
 .form-switch a { font-weight: 800; }
 .form-card { grid-template-columns: 0.76fr 1.24fr; }
-.form-card-visual { position: relative; min-height: 470px; overflow: hidden; background: radial-gradient(circle at 50% 40%, #347766, #153f36); }
+.form-card-visual { position: relative; min-height: 470px; overflow: hidden; background: radial-gradient(circle at 50% 36%, #7b278d, #3b246f 58%, #202b70); }
 .form-card-visual::after { content: ''; position: absolute; inset: 12%; border: 1px solid rgba(255,255,255,0.18); border-radius: 50%; }
-.floating-card { position: absolute; z-index: 1; width: 90px; height: 126px; display: grid; place-items: center; border-radius: 14px; color: #183f36; background: #fffaf0; box-shadow: 0 24px 42px rgba(0,0,0,0.25); font-family: var(--font-mono); font-size: 1.8rem; font-weight: 900; }
+.floating-card { position: absolute; z-index: 1; width: 90px; height: 126px; display: grid; place-items: center; border-radius: var(--radius-md); color: #1a1040; background: #fdf7fb; box-shadow: 0 28px 48px rgba(6, 4, 26, 0.42); font-family: var(--font-mono); font-size: 1.8rem; font-weight: 900; }
 .card-one { top: 25%; left: 20%; transform: rotate(-15deg); }
 .card-two { top: 42%; left: 43%; transform: rotate(5deg); }
 .card-three { top: 19%; right: 12%; transform: rotate(14deg); }
@@ -307,16 +382,16 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 .form-intro { margin-bottom: 0; color: var(--muted); }
 .join-layout { grid-template-columns: 1.05fr 0.95fr; }
 .join-table-preview { position: relative; min-height: 520px; overflow: hidden; background: linear-gradient(150deg, var(--felt), var(--felt-deep)); }
-.preview-table { position: absolute; inset: 23% 12%; display: grid; place-items: center; border: 12px solid rgba(10,31,26,0.28); border-radius: 50%; outline: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.34); text-align: center; text-transform: uppercase; font-size: 1.5rem; font-weight: 900; letter-spacing: 0.11em; }
-.preview-seat { position: absolute; z-index: 2; width: 54px; height: 76px; border: 3px solid #e8e7df; border-radius: 9px; background: var(--accent); box-shadow: 0 10px 20px rgba(0,0,0,0.22); }
+.preview-table { position: absolute; inset: 23% 12%; display: grid; place-items: center; border: 12px solid rgba(12, 8, 40, 0.32); border-radius: 50%; outline: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.36); font-family: var(--font-display); text-align: center; text-transform: uppercase; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.11em; }
+.preview-seat { position: absolute; z-index: 2; width: 54px; height: 76px; border: 3px solid rgba(255, 255, 255, 0.82); border-radius: var(--radius-sm); background: linear-gradient(170deg, var(--brand-bright), var(--brand)); box-shadow: 0 12px 24px rgba(6, 4, 26, 0.34); }
 .seat-a { top: 12%; left: calc(50% - 27px); }
 .seat-b { top: calc(50% - 38px); right: 6%; transform: rotate(90deg); }
 .seat-c { bottom: 10%; left: calc(50% - 27px); }
 .seat-d { top: calc(50% - 38px); left: 6%; transform: rotate(90deg); }
-.privacy-note { margin: 1.3rem 0 0; padding: 0.8rem; border-radius: 10px; color: var(--success); background: var(--success-soft); font-size: 0.74rem; }
+.privacy-note { margin: 1.3rem 0 0; padding: 0.85rem 1rem; border: 1px solid color-mix(in srgb, var(--success) 28%, transparent); border-radius: var(--radius-md); color: var(--success); background: var(--success-soft); font-size: 0.74rem; }
 .privacy-note span { margin-right: 0.35rem; }
-.decision-card { max-width: 620px; margin: auto; padding: clamp(2rem, 6vw, 4rem); border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-md); text-align: center; }
-.decision-icon { width: 66px; height: 66px; margin: 0 auto 1.4rem; display: grid; place-items: center; border-radius: 20px; color: var(--danger); background: var(--danger-soft); font-size: 2rem; font-weight: 350; transform: rotate(4deg); }
+.decision-card { max-width: 620px; margin: auto; padding: clamp(2rem, 6vw, 4rem); border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), var(--shadow-md); text-align: center; }
+.decision-icon { width: 66px; height: 66px; margin: 0 auto 1.4rem; display: grid; place-items: center; border-radius: var(--radius-lg); color: var(--danger); background: var(--danger-soft); font-size: 2rem; font-weight: 350; transform: rotate(4deg); }
 .decision-icon.is-neutral { color: var(--success); background: var(--success-soft); }
 .decision-card h1 { margin-bottom: 0.8rem; font-size: clamp(1.8rem, 5vw, 2.6rem); }
 .decision-card > p { max-width: 470px; margin: 0 auto 1.7rem; color: var(--muted); }
@@ -327,30 +402,31 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 .room-topbar, .room-brand, .room-top-actions, .deck-heading, .round-status, .room-controls { display: flex; align-items: center; }
 .room-topbar { min-height: 58px; margin-bottom: 1rem; display: flex; justify-content: space-between; gap: 1rem; }
 .room-brand { min-width: 0; gap: 0.7rem; }
-.room-mark { position: relative; width: 40px; height: 52px; flex: 0 0 40px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 9px; color: var(--accent); background: var(--surface); box-shadow: var(--shadow-sm); font-family: var(--font-mono); font-weight: 900; transform: rotate(-4deg); }
-.room-mark::after { content: ''; position: absolute; inset: 4px; border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 5px; }
+.room-mark { position: relative; width: 40px; height: 52px; flex: 0 0 40px; display: grid; place-items: center; border: 1px solid rgba(237, 17, 123, 0.45); border-radius: var(--radius-sm); color: #ffffff; background: linear-gradient(170deg, var(--brand-bright), var(--brand) 60%, #7d0a41); box-shadow: 0 10px 20px rgba(237, 17, 123, 0.26); font-family: var(--font-mono); font-weight: 900; transform: rotate(-4deg); }
+.room-mark::after { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(255, 255, 255, 0.34); border-radius: 5px; }
 .room-brand > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 0 0.5rem; }
-.room-kicker { grid-column: 1 / -1; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; }
-.room-brand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; letter-spacing: -0.02em; }
+.room-kicker { grid-column: 1 / -1; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.room-brand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; letter-spacing: -0.03em; }
 .room-code { color: var(--muted); font-family: var(--font-mono); font-size: 0.66rem; }
-.room-top-actions { flex: 0 0 auto; gap: 0.65rem; }
-.room-switch { min-height: 44px; padding: 0.5rem 0.7rem; display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-soft); cursor: pointer; font-size: 0.72rem; font-weight: 780; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+.room-top-actions { flex: 0 0 auto; gap: 0.5rem; }
+.room-switch { min-height: 44px; padding: 0.5rem 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--text-soft); cursor: pointer; font-size: 0.72rem; font-weight: 750; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .room-switch:hover { border-color: var(--border-strong); background: var(--surface-hover); color: var(--text); }
 .room-switch[aria-pressed="false"] { color: var(--muted); }
+.room-switch[aria-pressed="true"] { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
 .room-switch .switch-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 .room-switch[aria-pressed="false"] .switch-dot { background: var(--muted); box-shadow: 0 0 0 3px var(--surface-hover); }
-.facilitator-badge { padding: 0.28rem 0.55rem; border-radius: var(--radius-pill); color: var(--accent); background: var(--accent-soft); font-size: 0.66rem; font-weight: 800; }
+.facilitator-badge { padding: 0.3rem 0.7rem; border-radius: var(--radius-pill); color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; }
 .connection-state { display: inline-flex; align-items: center; gap: 0.38rem; color: var(--warning); font-size: 0.72rem; font-weight: 750; }
 .connection-state > span:first-child { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px var(--warning-soft); }
 .connection-state.is-live { color: var(--success); }
 .connection-state.is-live > span:first-child { box-shadow: 0 0 0 3px var(--success-soft); }
-.room-button { min-height: 44px; padding: 0.62rem 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.38rem; border: 1px solid var(--border); border-radius: 10px; box-shadow: none; cursor: pointer; font-size: 0.78rem; font-weight: 800; transition: background 0.15s, border-color 0.15s, transform 0.15s; }
+.room-button { min-height: 44px; padding: 0.62rem 1.05rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.38rem; border: 1px solid var(--border); border-radius: var(--radius-pill); box-shadow: none; cursor: pointer; font-size: 0.78rem; font-weight: 750; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .room-button-secondary { color: var(--text); background: var(--surface); }
 .room-button-secondary:hover { border-color: var(--border-strong); background: var(--surface-hover); }
-.room-button-primary { color: var(--accent-contrast); border-color: var(--accent); background: var(--accent); }
-.room-button-primary:hover { background: var(--accent-hover); }
+.room-button-primary { color: var(--accent-contrast); border-color: transparent; background: var(--accent); box-shadow: 0 10px 22px rgba(237, 17, 123, 0.26); }
+.room-button-primary:hover { background: var(--accent-hover); box-shadow: 0 14px 28px rgba(237, 17, 123, 0.34); }
 .room-workspace { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 1rem; align-items: start; }
-.room-sidebar, .poker-table-card, .room-deck-wrap { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.room-sidebar, .poker-table-card, .room-deck-wrap { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), var(--shadow-sm); }
 /* No min-height: it used to stretch the whole layout even with no stories in it,
    which gave the room the proportions of an admin panel. It is a disclosure now,
    so on a narrow screen the felt keeps the space. */
@@ -397,7 +473,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); backgrou
 @keyframes consensus-bloom { 0% { opacity: 0; } 22% { opacity: 1; } 100% { opacity: 0; } }
 
 .table-marks { position: absolute; inset: 50px 11% 34px; z-index: var(--z-marks); display: grid; place-content: center; justify-items: center; gap: 0.5rem; pointer-events: none; text-align: center; }
-.table-count { color: var(--felt-text); font-family: Georgia, serif; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800; line-height: 1; }
+.table-count { color: var(--felt-text); font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
 .table-count:empty { display: none; }
 .table-count.is-ticking { animation: count-pop 0.42s ease-out; }
 @keyframes count-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
@@ -489,7 +565,11 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .is-offline .participant-back::after { content: '—'; color: var(--muted); font-size: 1.4rem; animation: none; }
 .participant-front { transform: rotateY(180deg); color: var(--card-ink); background: var(--card-face); font-family: var(--font-mono); font-size: clamp(1.1rem, calc(var(--card-w) * 0.4), 1.75rem); font-weight: 900; }
 .participant-front::after { content: 'PP'; position: absolute; right: 5px; bottom: 3px; color: color-mix(in srgb, var(--card-ink) 38%, transparent); font-size: 0.42rem; letter-spacing: -0.05em; }
-.participant-front.no-vote { color: var(--muted); }
+/* La tinta de una carta sale de la carta, nunca de un token de tema. La cara es
+   un objeto claro en los dos temas; `--muted` gira con el tema y en oscuro es
+   blanco, así que el guion de «no votó» desaparecía sobre la cara al revelar
+   (1,08:1). Mezclado con la propia cara se mantiene apagado y legible. */
+.participant-front.no-vote { color: color-mix(in srgb, var(--card-ink) 62%, var(--card-face)); }
 .is-me .participant-face { border-color: #f3bd78; box-shadow: 0 0 0 3px rgba(243,189,120,0.28), 0 7px 15px rgba(13,32,27,0.22); }
 .seat-name { max-width: calc(var(--seat-w) - 2px); padding: 0.08rem 0.28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 5px; color: var(--text-soft); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 1px 3px rgba(13,32,27,0.1); font-size: 0.7rem; font-weight: 820; }
 .seat-name span { margin-left: 0.25rem; padding: 0.08rem 0.28rem; border-radius: 4px; color: var(--accent); background: var(--accent-soft); font-size: 0.53rem; }
@@ -500,6 +580,25 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 /* Taken out of flow: in flow it changed the seat's height, which made the seat
    jump every time someone voted and left the ring sized for the tallest seat. */
 .seat-reminder { position: absolute; top: 100%; left: 50%; min-height: 28px; color: var(--warning); background: color-mix(in srgb, var(--surface) 92%, transparent); border-radius: 7px; transform: translateX(-50%); }
+/* Expulsar es la acción más destructiva de la mesa, así que se comporta como tal:
+   no grita en reposo —sería un aspa roja sobre la cara de cada persona toda la
+   sesión— pero aparece entera al apuntar al asiento o al llegar con el teclado.
+   Absoluta, como el recordatorio, para no alterar la altura del asiento. */
+.seat-remove {
+  position: absolute; top: -8px; right: 2px; z-index: var(--z-stage-ui);
+  width: 22px; height: 22px; padding: 0; display: grid; place-items: center;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); border-radius: 50%;
+  color: var(--danger); background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-size: 0.82rem; font-weight: 700; line-height: 1; cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.table-seat:hover .seat-remove, .seat-remove:focus-visible { opacity: 1; }
+.seat-remove:hover { color: var(--danger); background: var(--danger-soft); }
+/* En una pantalla táctil no hay «apuntar»: o está siempre, o no existe. */
+@media (hover: none) {
+  .seat-remove { opacity: 1; }
+}
+
 .is-reminded .participant-card::after { content: ''; position: absolute; inset: -7px; border: 2px solid var(--warning); border-radius: 14px; animation: gentle-nudge 1.05s ease-out 2; }
 @keyframes gentle-nudge { from { opacity: 1; transform: scale(.82); } to { opacity: 0; transform: scale(1.18); } }
 
@@ -511,10 +610,10 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .finish-issue input { min-width: 0; min-height: 44px; padding: 0.55rem 0.62rem; }
 
 /* The result of a round is the emotional peak; it gets a panel, not a label. */
-.round-result { position: relative; z-index: var(--z-stage-ui); margin: 0 clamp(0.75rem, 3vw, 1.75rem) 1rem; padding: 0.9rem 1rem; display: grid; gap: 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-sm); }
+.round-result { position: relative; z-index: var(--z-stage-ui); margin: 0 clamp(0.75rem, 3vw, 1.75rem) 1rem; padding: 1rem 1.15rem; display: grid; gap: 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), var(--shadow-sm); }
 .result-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; }
 .result-figure { display: grid; }
-.result-figure strong { font-size: 1.7rem; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.05; }
+.result-figure strong { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.035em; line-height: 1.05; }
 .result-figure span { color: var(--muted); font-size: 0.6rem; font-weight: 820; letter-spacing: 0.12em; text-transform: uppercase; }
 .result-verdict { margin: 0 0 0 auto; padding: 0.35rem 0.7rem; border-radius: var(--radius-pill); font-size: 0.72rem; font-weight: 820; }
 .result-verdict.is-consensus { color: var(--success); background: var(--success-soft); }
@@ -608,7 +707,7 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .poker-card.selected::before { border-color: color-mix(in srgb, var(--accent-contrast) 38%, transparent); }
 .poker-card:disabled { opacity: 0.42; cursor: not-allowed; filter: saturate(0.55); }
 
-#toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 150; max-width: min(380px, calc(100vw - 2rem)); padding: 0.8rem 1rem; border: 1px solid color-mix(in srgb, var(--success) 50%, transparent); border-radius: 11px; color: var(--text); background: var(--success-soft); box-shadow: var(--shadow-lg); font-size: 0.78rem; font-weight: 750; opacity: 0; transform: translateY(130%); transition: opacity 0.2s, transform 0.25s; pointer-events: none; }
+#toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 150; max-width: min(380px, calc(100vw - 2rem)); padding: 0.85rem 1.1rem; border: 1px solid color-mix(in srgb, var(--success) 50%, transparent); border-radius: var(--radius-md); color: var(--text); background: color-mix(in srgb, var(--success-soft) 94%, var(--surface)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--shadow-lg); font-size: 0.78rem; font-weight: 700; opacity: 0; transform: translateY(130%); transition: opacity 0.2s, transform 0.25s; pointer-events: none; }
 #toast.is-error { border-color: color-mix(in srgb, var(--danger) 50%, transparent); background: var(--danger-soft); }
 #toast.show { opacity: 1; transform: translateY(0); }
 
@@ -745,3 +844,150 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .pick-preview { --av-w: 40px; --pet-w: 32px; min-height: 62px; display: flex; align-items: center; gap: 0.6rem; margin-top: 0.2rem; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: linear-gradient(150deg, var(--felt), var(--felt-deep)); }
 .pick-preview .seat-avatar, .pick-preview .seat-pet { animation: none; }
 .pick-preview span { color: var(--felt-text); font-size: 0.68rem; font-weight: 780; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ------------------------------------------------------------------------- */
+/* Carcasa de aplicación móvil                                               */
+/*                                                                           */
+/* Por debajo de 821px la web deja de comportarse como una página y pasa a   */
+/* comportarse como una app: barra superior fija y compacta, barra de        */
+/* pestañas abajo al alcance del pulgar, y en la sala la baraja anclada al   */
+/* borde inferior como la mano de cartas de un juego.                        */
+/*                                                                           */
+/* Tres reglas sostienen la ilusión y ninguna es decorativa:                 */
+/* - `100dvh` y `env(safe-area-inset-*)`, para que nada quede debajo del     */
+/*   notch ni de la barra de gestos.                                         */
+/* - `touch-action: manipulation`, que elimina el retardo de 300 ms y el     */
+/*   zoom por doble toque sobre los controles.                               */
+/* - Ningún contenedor horizontal nuevo: el test de teléfono exige que la    */
+/*   página no se desplace de lado, así que todo lo anclado va de 0 a 0.     */
+/* ------------------------------------------------------------------------- */
+
+button, .button, .nav-link, .tab-item, .poker-card, .room-button, .room-switch,
+.throw-item, .pick-grid label { touch-action: manipulation; }
+
+.app-tabbar { display: none; }
+
+@media (max-width: 820px) {
+  :root { --header-height: 58px; --tabbar-height: 62px; }
+
+  .site-header {
+    padding-inline: 0.85rem;
+    padding-block: 0.4rem;
+    padding-top: max(0.4rem, env(safe-area-inset-top));
+    min-height: var(--header-height);
+  }
+  .brand-mark { flex-basis: 34px; width: 34px; height: 34px; }
+  .brand-mark span { font-size: 0.9rem; }
+  .brand-copy strong { font-size: 0.95rem; }
+  /* Los destinos se van enteros a la barra inferior, no a medias: dejar «Salir»
+     arriba y «Nueva sala» abajo obliga a buscar en dos sitios. Arriba queda la
+     identidad y el tema, que es lo que una app pone en su barra de título. */
+  .site-nav .nav-link, .site-nav .nav-register, .site-nav .user-chip, .site-nav .nav-form { display: none; }
+
+  /* La barra de pestañas sustituye a los enlaces del encabezado, que hasta
+     ahora simplemente desaparecían en pantallas pequeñas: el usuario de móvil
+     se quedaba sin forma de crear una sala o cerrar sesión. */
+  .app-tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 140;
+    display: flex; align-items: stretch;
+    min-height: var(--tabbar-height);
+    padding: 0.3rem 0.4rem;
+    padding-bottom: max(0.3rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--chrome);
+    backdrop-filter: blur(22px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  }
+  .app-tabbar form { display: flex; flex: 1 1 0; margin: 0; }
+  .tab-item {
+    flex: 1 1 0; min-width: 0; min-height: 52px; padding: 0.3rem 0.25rem;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.18rem;
+    border: 0; border-radius: var(--radius-md); background: transparent;
+    color: var(--muted); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.01em;
+    text-decoration: none; cursor: pointer;
+    transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  }
+  .tab-item svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab-item:active { background: var(--surface-hover); }
+  .tab-item[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+  /* La acción principal se reconoce sin leerla: es la única pastilla rosa. */
+  .tab-item.is-action { color: var(--accent); }
+  .tab-item.is-action svg { stroke-width: 2.1; }
+
+  body { padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom)); }
+  .site-footer { padding-bottom: 1rem; }
+}
+
+@media (max-width: 700px) {
+  /* En la sala la barra de pestañas estorba: el borde inferior es de la mano
+     de cartas, que es la acción real de esta pantalla. */
+  body.is-room .app-tabbar { display: none; }
+  body.is-room { padding-bottom: 0; }
+  body.is-room .site-footer { display: none; }
+
+  .room-shell { padding-top: 0.5rem; padding-bottom: calc(var(--deck-dock-height, 164px) + env(safe-area-inset-bottom)); }
+
+  /* La cabecera de la sala es lo que el teléfono no se puede permitir: antes
+     ocupaba media pantalla antes de enseñar la mesa. Se queda el nombre, el
+     estado y los interruptores; el rótulo «Mesa de planning» sobra cuando la
+     app entera es una mesa de planning. */
+  .room-topbar { margin-bottom: 0.7rem; row-gap: 0.4rem; }
+  .room-kicker { display: none; }
+  .room-mark { width: 32px; height: 42px; flex-basis: 32px; font-size: 0.82rem; }
+  .room-brand strong { font-size: 0.98rem; }
+
+  /* Un interruptor sin etiqueta es un punto de color: no dice qué apaga.
+     Caben los seis en dos filas si se encogen, y así siguen diciéndolo. */
+  .room-switch .switch-label { display: inline; }
+  .room-top-actions { justify-content: flex-start; gap: 0.35rem; row-gap: 0.4rem; }
+  /* El espacio se gana estrechando, nunca bajando de 44px: un control de 38px
+     de alto se falla con el pulgar, y una fila extra cuesta doce píxeles. */
+  .room-switch { min-height: 44px; padding: 0.38rem 0.65rem; font-size: 0.68rem; }
+  .room-switch .switch-dot { width: 7px; height: 7px; }
+  .room-button { min-height: 44px; padding: 0.4rem 0.8rem; font-size: 0.72rem; }
+  #share-room { margin-left: auto; }
+
+  /* La baraja, anclada abajo como una hoja: esquinas redondeadas sólo arriba,
+     fondo translúcido y un tirador que anuncia que es una capa sobre la mesa. */
+  .room-deck-wrap {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 130;
+    padding: 0.55rem 0.7rem 0.7rem;
+    padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+    border: 0; border-top: 1px solid var(--border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--chrome);
+    backdrop-filter: blur(22px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    box-shadow: 0 -18px 40px rgba(6, 4, 26, 0.26);
+  }
+  .room-deck-wrap::before {
+    content: ''; display: block; width: 38px; height: 4px; margin: 0 auto 0.5rem;
+    border-radius: var(--radius-pill); background: var(--border-strong);
+  }
+  /* La hoja anclada paga cada píxel con mesa: sólo el rótulo, sin la nota de
+     privacidad, que ya está escrita en la pantalla de ingreso. */
+  .deck-heading { margin-bottom: 0.2rem; }
+  .deck-heading > span { display: none; }
+  .deck-heading strong { font-size: 0.8rem; }
+  .deck { padding: 0.9rem 0.2rem 0.35rem; }
+  /* El dedo necesita más carta que el ratón. */
+  .poker-card { flex-basis: 56px; width: 56px; height: 80px; }
+  .throw-tray { margin-top: 0.5rem; padding-top: 0.5rem; }
+  .throw-hint { display: none; }
+
+  #toast { bottom: calc(var(--deck-dock-height, 164px) + 0.6rem); right: 0.75rem; left: 0.75rem; max-width: none; }
+
+  /* Los controles de facilitación son la segunda acción de la pantalla: fila
+     completa, píldoras grandes, nada apretado contra el borde. */
+  .room-controls { padding: 0.75rem 0.85rem 0.95rem; gap: 0.5rem; }
+  .room-controls > .room-button { min-height: 48px; }
+
+  .poker-table-card, .room-sidebar { border-radius: var(--radius-lg); }
+  .round-heading h1 { font-size: clamp(1.25rem, 5.5vw, 1.6rem); }
+}
+
+@media (max-width: 460px) {
+  .tab-item span { font-size: 0.6rem; }
+  .room-deck-wrap { padding-inline: 0.5rem; }
+}

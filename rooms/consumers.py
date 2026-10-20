@@ -9,6 +9,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.db import transaction
 from django.db.models import F
 
+from .decks import deck_values, is_expanded
 from .models import Issue, Participant, PokerRoom
 from .services import (
     RoomActionError,
@@ -16,8 +17,10 @@ from .services import (
     cast_vote,
     finish_active_issue,
     remind_participant,
+    remove_participant,
     reset_round,
     reveal_round,
+    set_deck,
     set_identity,
     set_playful_actions,
     set_recess,
@@ -104,6 +107,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "player.move",
             "room.set_recess",
             "participant.set_identity",
+            "participant.remove",
+            "room.set_deck",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
             return
@@ -130,6 +135,10 @@ class PokerConsumer(AsyncWebsocketConsumer):
             await self.handle_set_recess(data)
         elif event_type == "participant.set_identity":
             await self.handle_set_identity(data)
+        elif event_type == "participant.remove":
+            await self.handle_remove_participant(data)
+        elif event_type == "room.set_deck":
+            await self.handle_set_deck(data)
 
     async def handle_vote(self, data):
         value = data.get("value")
@@ -348,6 +357,49 @@ class PokerConsumer(AsyncWebsocketConsumer):
             {"type": "participant.updated", "participant": participant},
         )
 
+    async def handle_remove_participant(self, data):
+        participant_id = data.get("participant_id")
+        if isinstance(participant_id, bool) or not isinstance(participant_id, int):
+            await self.send_error("invalid_payload", "A participant id must be an integer.")
+            return
+
+        try:
+            removed = await self.remove_participant(participant_id)
+        except (Participant.DoesNotExist, RoomActionError) as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        # Deliberadamente estrecho, igual que `player.hit`: quién se va y nada más.
+        # No transporta votos, ni el motivo, ni quién lo decidió.
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "participant.removed", "participant_id": removed["id"]},
+        )
+
+    async def handle_set_deck(self, data):
+        expanded = data.get("expanded")
+        if not isinstance(expanded, bool):
+            await self.send_error("invalid_payload", "The switch must be true or false.")
+            return
+
+        try:
+            deck = await self.update_deck(expanded)
+        except RoomActionError as error:
+            await self.send_error("invalid_action", str(error))
+            return
+
+        # Van los votos retirados además de la baraja: quien tenía un 55 necesita ver
+        # su carta levantarse de la mesa, no enterarse al revelar.
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "room.deck_changed",
+                "deck": deck["deck"],
+                "expanded": deck["expanded"],
+                "cleared_participant_ids": deck["cleared_participant_ids"],
+            },
+        )
+
     async def send_error(self, code, message):
         await self.send(text_data=json.dumps({"type": "error", "code": code, "message": message}))
 
@@ -364,14 +416,16 @@ class PokerConsumer(AsyncWebsocketConsumer):
         except PokerRoom.DoesNotExist:
             return None
 
+        # `active_participants`, no `participants`: la fila del expulsado sigue ahí
+        # a propósito, y buscarla sin filtrar le devolvería el socket al reconectar.
         user = self.scope.get("user")
         if user and user.is_authenticated:
-            return Participant.objects.filter(room=room, user=user).first()
+            return room.active_participants.filter(user=user).first()
 
         session = self.scope.get("session", {})
         room_token = session.get("guest_tokens", {}).get(str(room.id))
         if room_token:
-            return Participant.objects.filter(room=room, guest_token=room_token).first()
+            return room.active_participants.filter(guest_token=room_token).first()
         return None
 
     @database_sync_to_async
@@ -448,6 +502,30 @@ class PokerConsumer(AsyncWebsocketConsumer):
         return self._participant_state(participant, room)
 
     @database_sync_to_async
+    def remove_participant(self, participant_id):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        participant = remove_participant(room.id, participant_id, self.scope.get("user"))
+        return {"id": participant.id}
+
+    @database_sync_to_async
+    def update_deck(self, expanded):
+        room = PokerRoom.objects.get(public_id=self.public_id)
+        # Antes del cambio, para saber a quién hay que avisar de que se quedó sin voto.
+        had_votes = dict(
+            room.active_participants.exclude(current_vote__isnull=True)
+            .values_list("id", "current_vote")
+        )
+        room = set_deck(room.id, expanded, self.scope.get("user"))
+        kept = set(deck_values(room.deck))
+        return {
+            "deck": list(deck_values(room.deck)),
+            "expanded": is_expanded(room.deck),
+            "cleared_participant_ids": [
+                pid for pid, vote in had_votes.items() if vote not in kept
+            ],
+        }
+
+    @database_sync_to_async
     def update_recess(self, enabled):
         room = PokerRoom.objects.get(public_id=self.public_id)
         room = set_recess(room.id, enabled, self.scope.get("user"))
@@ -458,7 +536,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
         room = PokerRoom.objects.get(public_id=self.public_id)
         return [
             self._participant_state(participant, room)
-            for participant in room.participants.order_by("joined_at", "id")
+            for participant in room.active_participants.order_by("joined_at", "id")
         ]
 
     @database_sync_to_async
@@ -471,15 +549,16 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "room": {
                 "status": room.status,
                 "voting_status": room.voting_status,
-                "deck": room.deck.split(","),
+                "deck": list(deck_values(room.deck)),
                 "is_facilitator": is_facilitator,
                 "allow_playful_actions": room.allow_playful_actions,
                 "recess_open": room.recess_open,
+                "deck_expanded": is_expanded(room.deck),
             },
             "active_issue": self.serialize_issue(room.active_issue) if room.active_issue else None,
             "participants": [
                 self._participant_state(participant, room)
-                for participant in room.participants.order_by("joined_at", "id")
+                for participant in room.active_participants.order_by("joined_at", "id")
             ],
             "your_vote": Participant.objects.get(pk=self.participant.id).current_vote,
             "results": results,
@@ -527,6 +606,30 @@ class PokerConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps(
                 {"type": "participant.left", "participant_id": event["participant_id"]}
+            )
+        )
+
+    async def participant_removed(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "participant.removed", "participant_id": event["participant_id"]}
+            )
+        )
+        # A quien echan se le cierra el socket aquí mismo. Esperar a que el cliente
+        # se desconecte solo deja abierta una conexión que ya no debería existir, y
+        # el navegador no es quien decide eso.
+        if self.participant and event["participant_id"] == self.participant.id:
+            await self.close(code=4403)
+
+    async def room_deck_changed(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "room.deck_changed",
+                    "deck": event["deck"],
+                    "expanded": event["expanded"],
+                    "cleared_participant_ids": event["cleared_participant_ids"],
+                }
             )
         )
 

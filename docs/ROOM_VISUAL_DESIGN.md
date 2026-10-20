@@ -35,7 +35,13 @@ Dos detalles importan y no son obvios:
   Verificado sin solapes ni desbordes de 1 a 18 participantes.
 
 Nada que cambie de tamaño durante la ronda puede estar en el flujo del asiento, o el anillo se
-redimensiona a mitad de partida: por eso el botón de recordatorio es una capa absoluta.
+redimensiona a mitad de partida: por eso el botón de recordatorio y el de expulsar son capas
+absolutas. **Esto incluye el texto suelto.** Un comentario `{# ... #}` repartido en varias líneas
+—Django sólo los cierra en una— se renderiza como texto dentro del asiento, y un contenedor
+`display: grid` lo envuelve en un ítem anónimo que añade una fila: los asientos pasaron de 116 a
+417 px y el anillo se amontonó en el centro. Lo vigila `config/test_templates.py`, y
+`test_the_expel_button_never_changes_the_size_of_a_seat` compara contra el asiento propio, que
+nunca lleva botones.
 
 El orden del anillo es el del servidor (`joined_at`, luego `id`), así que los vecinos son los mismos
 para todo el mundo. El anillo se rota localmente para que cada persona vea su propio asiento abajo
@@ -74,8 +80,8 @@ además como texto.
 
 ## Cartas de participante
 
-- El reverso terracota indica que la persona ya votó, sin revelar su valor. Al aparecer, la carta
-  se apoya sobre la mesa con una animación breve.
+- El reverso rosa de marca indica que la persona ya votó, sin revelar su valor. Al aparecer, la
+  carta se apoya sobre la mesa con una animación breve.
 - Una carta clara con la etiqueta `Pensando` indica que está conectada y aún no vota; los puntos
   suspensivos laten con suavidad.
 - Una carta apagada indica que la persona está ausente; no respira y no se usa como señal de
@@ -92,6 +98,16 @@ El centro de la mesa informa en lugar de decorar:
 - El montón de cartas repartidas crece con cada voto emitido.
 - El contador `N de M han votado` es texto real en una región `aria-live="polite"`.
 - Durante el reveal, una cuenta atrás ocupa el centro.
+
+## Expulsar desde el asiento
+
+El aspa del facilitador vive en la esquina superior del asiento y no grita en reposo: un aspa roja
+sobre la cara de cada persona durante toda la sesión sería ruido, y la acción es rara. Aparece al
+apuntar al asiento o al llegar con el teclado. En una pantalla táctil no hay «apuntar», así que
+ahí está siempre (`@media (hover: none)`).
+
+Pregunta antes de ejecutar. La confirmación no sustituye a la autorización —el servidor vuelve a
+comprobar quién lo pidió— sino que evita el resbalón, porque desde la sala no se deshace.
 
 ## Mano de cartas
 
@@ -206,6 +222,27 @@ caminante. `will-change` se usa en un solo sitio, justamente ahí.
   `prefers-reduced-motion`; los botones y cartas son operables con teclado.
 - Los adornos del paño (óvalo, resplandor, montón, cuenta atrás) son `aria-hidden`; el contador de
   votos no lo es.
+
+## La sala en un teléfono
+
+Por debajo de 700px la sala deja de ser una página y pasa a ser una pantalla de aplicación. Son
+tres decisiones, y ninguna es decorativa:
+
+- **La mano va anclada al borde inferior.** Elegir carta es la acción de esta pantalla, así que
+  vive bajo el pulgar: hoja con esquinas redondeadas arriba, fondo translúcido y un tirador que
+  dice que es una capa sobre la mesa. La barra de pestañas de la app se retira en la sala, porque
+  ese borde ya tiene dueño.
+- **El hueco se mide, no se adivina.** La altura de la hoja cambia con la bandeja de objetos, así
+  que el cliente la mide con un `ResizeObserver` y la publica en `--deck-dock-height`; la sala
+  reserva exactamente eso de relleno inferior. Con un valor fijo, la última fila de la mesa queda
+  tapada para siempre y no hay scroll que la saque.
+- **La cabecera se encoge hasta lo que dice algo.** Desaparece el rótulo «Mesa de planning» —la
+  app entera es una mesa de planning— y los interruptores conservan su etiqueta: un interruptor
+  sin texto es un punto de color que no dice qué apaga.
+
+`100dvh` en lugar de `100vh` y `env(safe-area-inset-*)` en todo lo anclado, para que nada quede
+bajo el notch ni bajo la barra de gestos. El test `test_a_phone_never_scrolls_sideways` sigue
+mandando: nada anclado introduce desplazamiento horizontal.
 
 ## Prototipo
 

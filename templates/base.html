@@ -4,9 +4,16 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#111713" media="(prefers-color-scheme: dark)">
+    <!-- viewport-fit=cover: sin esto el contenido nunca llega al borde de un
+         teléfono con notch y la carcasa se delata como una página web. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f6f4fd" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#202b70" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Planning Pocket">
     <title>{% block title %}Planning Pocket{% endblock %}</title>
     <script>
         (() => {
@@ -18,9 +25,12 @@
             document.documentElement.dataset.theme = theme;
         })();
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <header class="site-header">
         <a class="site-brand" href="{% url 'dashboard' %}" aria-label="Planning Pocket, inicio">
@@ -56,15 +66,56 @@
         <span>Diseñado para decisiones honestas</span><span aria-hidden="true">·</span>
         <span>&copy; {% now "Y" %} Blandskron</span>
     </footer>
+    {% comment %}
+    En pantallas pequeñas los enlaces del encabezado se ocultan por falta de
+    sitio. Esta barra es donde viven en su lugar: al alcance del pulgar y con el
+    destino actual marcado, como en una aplicación nativa.
+    {% endcomment %}
+    {% with here=request.resolver_match.url_name %}
+    <nav class="app-tabbar" aria-label="Navegación de la aplicación">
+        {% if user.is_authenticated %}
+            <a class="tab-item" href="{% url 'dashboard' %}" {% if here == 'dashboard' %}aria-current="page"{% endif %}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+                <span>Mis salas</span>
+            </a>
+            <a class="tab-item is-action" href="{% url 'create_room' %}" {% if here == 'create_room' %}aria-current="page"{% endif %}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+                <span>Nueva sala</span>
+            </a>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="tab-item">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h10"/></svg>
+                    <span>Salir</span>
+                </button>
+            </form>
+        {% else %}
+            <a class="tab-item" href="{% url 'login' %}" {% if here == 'login' %}aria-current="page"{% endif %}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><path d="M14 17l5-5-5-5"/><path d="M19 12H9"/></svg>
+                <span>Ingresar</span>
+            </a>
+            <a class="tab-item is-action" href="{% url 'register' %}" {% if here == 'register' %}aria-current="page"{% endif %}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="7" r="3.5"/><path d="M18 8v6M21 11h-6"/></svg>
+                <span>Crear cuenta</span>
+            </a>
+        {% endif %}
+    </nav>
+    {% endwith %}
     <script>
         const root = document.documentElement;
         const themeToggle = document.getElementById('theme-toggle');
+        /* La barra de estado del teléfono se pinta con este meta. Si no se
+           actualiza al cambiar de tema, queda un borde del color contrario
+           justo encima de la carcasa. */
+        const themeColorMetas = document.querySelectorAll('meta[name="theme-color"]');
         function syncThemeControl() {
             const isDark = root.dataset.theme === 'dark';
             const label = isDark ? 'Activar modo claro' : 'Activar modo oscuro';
             themeToggle.setAttribute('aria-label', label);
             themeToggle.title = label;
             themeToggle.setAttribute('aria-pressed', String(isDark));
+            const chrome = isDark ? '#202b70' : '#f6f4fd';
+            themeColorMetas.forEach(meta => { meta.content = chrome; });
         }
         themeToggle.addEventListener('click', () => {
             root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';

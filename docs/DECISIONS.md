@@ -107,3 +107,106 @@ nota al pie:
 **Alternativa descartada:** dejar el «ataque» sólo como recordatorio del facilitador.
 Es más seguro, pero mantiene la asimetría que hacía que la sala se sintiera como un
 panel de administración: una persona con controles y el resto esperando.
+
+---
+
+## ADR-006 — Sistema de diseño de Nxtara y carcasa de aplicación en móvil
+
+**Estado:** Aceptado
+
+**Decisión:** Adoptar el sistema de diseño de Nxtara como lenguaje visual del producto, y
+hacer que por debajo de 821px la interfaz se comporte como una aplicación móvil en lugar de
+como una página web estrecha.
+
+**Motivo.** Planning Pocket tenía un sistema visual propio —verde paño, acento terracota—
+coherente consigo mismo pero ajeno al resto del software de la empresa. Mantener dos lenguajes
+cuesta dos veces y no compra nada: el producto se presenta junto a los demás y debe reconocerse
+como parte de lo mismo. En móvil, además, había un agujero real: a partir de 700px los enlaces
+del encabezado se ocultaban por falta de sitio y no reaparecían en ningún otro lugar, así que
+desde un teléfono no se podía crear una sala ni cerrar sesión.
+
+**Cómo se implementa.** Las primitivas de Nxtara se declaran una sola vez con prefijo `--nx-*`
+y se traducen a los nombres semánticos que ya consumían los componentes (`--surface`,
+`--accent`, `--felt`, `--radius-*`…). Ningún componente lee una primitiva directamente. Esto es
+lo que permitió cambiar la marca entera tocando el bloque de tokens y un puñado de reglas, en
+lugar de reescribir la hoja: la geometría de la mesa, que está verificada al píxel por los tests
+de navegador, no se tocó.
+
+**Consecuencias:**
+
+- El rosa `#ed117b` no pasa AA sobre blanco para texto normal (4,2:1). Se parte en dos tokens:
+  `--brand` decora y nunca lleva texto; `--accent` es el interactivo y está rebajado hasta pasar.
+  Quien cambie uno por el otro rompe el contraste sin verlo.
+- **Una superficie que no cambia con el tema no puede llevar texto de un token que sí cambia.**
+  Esto no se dedujo: se encontró midiendo. La cara de la carta es clara en los dos temas y
+  `.participant-front.no-vote` usaba `--muted`, que en oscuro es blanco: al revelar, el guion de
+  «no votó» quedaba en 1,08:1, invisible. Lo mismo con el rótulo sobre el panel de marca
+  (`--brand-bright`, 4,1:1). Las tres superficies fijas —cara de carta, panel de marca y paño—
+  derivan su tinta de sí mismas, nunca del tema. Ver `docs/PRODUCT.md`.
+- El paño de la mesa es violeta en ambos temas. Los asientos siempre caen sobre él, así que la
+  paleta de asientos tampoco cambia con el tema, igual que antes.
+- Manrope e Inter se cargan desde Google Fonts, con la familia del sistema como respaldo. Es la
+  primera dependencia de red del frontend; si no carga, el texto se dibuja con la pila de
+  respaldo y nada se descoloca.
+- El tema oscuro pasa a ser la lectura canónica de la marca. El claro se mantiene, y la
+  preferencia del usuario sigue mandando sobre la del sistema.
+- En móvil aparecen dos elementos anclados que antes no existían —la barra de pestañas y la
+  baraja— y ninguno puede tapar lo que hay debajo. La altura de la baraja se **mide** y se
+  publica en `--deck-dock-height`, en lugar de reservar un hueco fijo que sobraría o faltaría
+  según la bandeja de objetos esté abierta o no.
+
+**Alternativa descartada:** quedarnos con la paleta propia y sólo «acercarla» al rosa de Nxtara.
+Habría dado un producto que no es ni una cosa ni la otra, y el coste de mantener dos lenguajes
+se paga igual.
+
+---
+
+## ADR-007 — Moderación de la sala: dos barajas y expulsión con veto
+
+**Estado:** Aceptado
+
+**Decisión:** El facilitador gana dos poderes sobre la sala. Primero, la baraja por
+defecto pasa a ser de ocho cartas (`0 1 2 3 5 8 13 ?`) y un interruptor la lleva a las
+trece de siempre. Segundo, puede expulsar a un participante, y la expulsión **veta**:
+esa persona no vuelve a entrar con el mismo enlace.
+
+**Motivo.** Trece cartas en un teléfono se recorren de lado, y las cuatro últimas de
+Fibonacci sirven para discutir una vez al trimestre. Y una sala que se comparte por un
+enlace impredecible pero público necesita que quien la abre pueda cerrarle la puerta a
+alguien, por el motivo que sea: un nombre que no corresponde, una pestaña zombi, una
+persona que no debería estar.
+
+**Cómo se implementa, y lo que no es obvio:**
+
+- **Dos listas cerradas, no una baraja configurable.** Viven en `rooms/decks.py`, como
+  las mascotas viven en `identity.py`. Una baraja escrita a mano obliga a validar
+  longitud, duplicados y qué cuenta como numérico para el promedio, a cambio de una
+  libertad que nadie pidió. `is_expanded()` se deriva de lo guardado en lugar de llevar
+  un booleano aparte, para que no puedan contradecirse.
+- **Al encoger, los votos huérfanos se retiran.** Un voto de una carta que ya no está
+  en la mesa aparecería al revelar como un 55 que no se puede volver a elegir, y el
+  promedio lo contaría: un número que nadie puede reproducir. El evento lleva a quién
+  le pasó, para que lo vea en el momento y no al final.
+- **La baraja no cambia bajo una ronda revelada**, igual que el recreo no se abre con
+  las cartas sobre la mesa. Cambiarla ahí reescribe un resultado que se está discutiendo.
+- **La expulsión no borra la fila: la fila *es* el veto.** `Participant.removed_at`
+  marca la salida y el registro se queda, porque guarda el `guest_token` —o el usuario—
+  con el que esa persona volvería a entrar. Borrarla dejaría que volviese con el mismo
+  enlace diez segundos después, que es exactamente no haber expulsado a nadie.
+- Por eso aparece `PokerRoom.active_participants`: **cualquier sitio que dibuje, cuente
+  o promedie la mesa tiene que pasar por ahí**, y `_get_seated()` protege cada acción
+  sobre un participante. Sin esa segunda guarda, el socket que el expulsado ya tenía
+  abierto seguiría votando.
+- El veto se comprueba en los dos sitios por los que se entra: la vista HTTP —el
+  cliente recarga la página en cuanto se le cierra el socket— y `get_participant()` del
+  consumer, porque reconectar es lo primero que hace el cliente al caerse.
+
+**Límite conocido, y es real:** un invitado expulsado que vacíe las cookies del
+navegador puede volver a entrar como alguien nuevo. La identidad de un invitado es su
+`guest_token` y no hay nada más fuerte que vetar sin pedir una cuenta. Para un
+participante autenticado el veto es contra el usuario y sí es firme. No lo tapamos con
+IP: castigaría a toda una oficina detrás del mismo NAT.
+
+**Alternativa descartada:** una expulsión blanda, que sólo saca de la mesa y deja
+volver. Es mucho más simple —no hay nada que persistir— pero sirve para limpiar un
+nombre mal escrito, no para apartar a alguien, que es lo que se pidió.

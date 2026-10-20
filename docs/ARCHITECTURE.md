@@ -65,3 +65,12 @@ La comunicación WebSocket transmitirá principalmente actualizaciones de estado
   participante, con la misma regla de privacidad que el resto.
 - `room.recess_changed`: Se abrió o cerró el recreo. Al revelar se emite antes del
   `room.revealed`, y sólo si había un recreo abierto.
+- `participant.removed`: El facilitador expulsó a alguien. Payload exacto:
+  `{"participant_id": 7}`. Deliberadamente estrecho, igual que `player.hit`: no lleva
+  el voto, ni el motivo, ni quién lo decidió. Al expulsado le llega este evento y
+  acto seguido se le cierra el socket con el código `4403`; el resto de la mesa ve
+  desaparecer el asiento sin recargar.
+- `room.deck_changed`: El facilitador alternó entre las dos barajas. Lleva
+  `{"deck": [...], "expanded": true|false, "cleared_participant_ids": [3, 9]}`. La
+  última lista es quién se quedó sin voto porque su carta ya no existe: sin ella esas
+  personas se enterarían al revelar, y no antes.

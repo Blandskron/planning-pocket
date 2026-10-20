@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% comment %}
+Pantalla propia, no `room_closed.html`: la sala sigue abierta y el resto del equipo
+sigue dentro. Decirle a esta persona que «la sala cerró» sería mentirle, y lo
+descubriría en cuanto preguntase por el chat.
+{% endcomment %}
+{% block title %}Fuera de {{ room.name }} · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
+{% block content %}
+<section class="decision-card"><span class="decision-icon" aria-hidden="true">—</span><span class="eyebrow">Ya no estás en la mesa</span><h1>El facilitador te sacó de esta sala</h1><p>La sala <strong>{{ room.name }}</strong> sigue abierta, pero este enlace ya no te deja entrar. Si crees que es un error, habla con quien la creó.</p><a href="{% url 'dashboard' %}" class="button button-primary">Ir al inicio</a></section>
+{% endblock %}

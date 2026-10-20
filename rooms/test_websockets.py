@@ -383,3 +383,145 @@ async def test_revealing_tells_everyone_the_recess_is_over():
     assert room.recess_open is False
 
     await communicator.disconnect()
+
+
+# --------------------------------------------------------------------------- #
+# Moderación: la baraja y la expulsión. Lo que se protege es el despacho —que la
+# acción llegue al servicio y que el evento llegue a la mesa— y, sobre todo, que
+# al expulsado se le cierre el socket que ya tenía abierto.
+# --------------------------------------------------------------------------- #
+
+
+async def connect_guest(room, participant):
+    """Abre un socket como invitado, con su token en la sesión como en producción."""
+    communicator = WebsocketCommunicator(PokerConsumer.as_asgi(), "/ws/test/")
+    communicator.scope["url_route"] = {"kwargs": {"public_id": room.public_id}}
+    communicator.scope["user"] = None
+    communicator.scope["session"] = {"guest_tokens": {str(room.id): participant.guest_token}}
+    return communicator
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_removing_someone_closes_their_socket_and_tells_the_table():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    facilitator, _ = await connect_participant(room, owner)
+    guest_socket = await connect_guest(room, guest)
+    connected, _ = await guest_socket.connect()
+    assert connected
+    await guest_socket.receive_json_from()  # room.state
+
+    await facilitator.send_json_to({"type": "participant.remove", "participant_id": guest.id})
+
+    announced = await wait_for(facilitator, "participant.removed")
+    assert announced == {"type": "participant.removed", "participant_id": guest.id}
+
+    # Al expulsado le llega el aviso y, acto seguido, la puerta.
+    own_notice = await wait_for(guest_socket, "participant.removed")
+    assert own_notice["participant_id"] == guest.id
+    closed = await guest_socket.receive_output()
+    assert closed["type"] == "websocket.close", "el socket del expulsado siguió abierto"
+    assert closed.get("code") == 4403
+
+    await facilitator.disconnect()
+    await guest_socket.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_an_expelled_guest_cannot_open_a_new_socket():
+    """Reconectar es lo primero que hace el cliente al caerse. Si eso le devolviera
+    la sala, la expulsión duraría dos segundos."""
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    facilitator, _ = await connect_participant(room, owner)
+    await facilitator.send_json_to({"type": "participant.remove", "participant_id": guest.id})
+    await wait_for(facilitator, "participant.removed")
+
+    retry = await connect_guest(room, guest)
+    connected, code = await retry.connect()
+    assert not connected, "el expulsado volvió a entrar reconectando"
+    assert code == 4403
+
+    await facilitator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_a_guest_cannot_remove_anyone():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    target = await sync_to_async(Participant.objects.create)(room=room, display_name="Target")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    guest_socket = await connect_guest(room, guest)
+    await guest_socket.connect()
+    await guest_socket.receive_json_from()
+
+    await guest_socket.send_json_to({"type": "participant.remove", "participant_id": target.id})
+    error = await wait_for(guest_socket, "error")
+    assert error["code"] == "invalid_action"
+    assert "facilitador" in error["message"]
+
+    await sync_to_async(target.refresh_from_db)()
+    assert target.removed_at is None
+
+    await guest_socket.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_the_deck_switch_reaches_the_whole_table_with_the_votes_it_took_back():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    facilitator, state = await connect_participant(room, owner)
+    assert state["room"]["deck"] == ["0", "1", "2", "3", "5", "8", "13", "?"]
+    assert state["room"]["deck_expanded"] is False
+
+    await facilitator.send_json_to({"type": "room.set_deck", "expanded": True})
+    grown = await wait_for(facilitator, "room.deck_changed")
+    assert grown["expanded"] is True
+    assert "55" in grown["deck"] and "Coffee" in grown["deck"]
+    assert grown["cleared_participant_ids"] == []
+
+    await sync_to_async(Participant.objects.filter(pk=guest.pk).update)(current_vote="55")
+    await facilitator.send_json_to({"type": "room.set_deck", "expanded": False})
+    shrunk = await wait_for(facilitator, "room.deck_changed")
+    assert shrunk["expanded"] is False
+    assert shrunk["deck"] == ["0", "1", "2", "3", "5", "8", "13", "?"]
+    assert shrunk["cleared_participant_ids"] == [guest.id], (
+        "nadie avisó a quien se quedó sin carta"
+    )
+
+    await facilitator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_a_guest_cannot_change_the_deck():
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    guest_socket = await connect_guest(room, guest)
+    await guest_socket.connect()
+    await guest_socket.receive_json_from()
+
+    await guest_socket.send_json_to({"type": "room.set_deck", "expanded": True})
+    error = await wait_for(guest_socket, "error")
+    assert "facilitador" in error["message"]
+
+    await sync_to_async(room.refresh_from_db)()
+    assert "55" not in room.deck
+
+    await guest_socket.disconnect()

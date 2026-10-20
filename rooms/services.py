@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.utils import timezone
 
+from .decks import FULL_DECK_VALUE, SHORT_DECK_VALUE, deck_values
 from .identity import COLOR_COUNT, PET_SLUGS
 from .models import Issue, Participant, PokerRoom
 from .playful import MAX_THROWS_PER_ROUND, THROW_COOLDOWN_SECONDS, THROWABLE_SLUGS
@@ -29,7 +30,21 @@ def _require_facilitator(room, actor):
 
 
 def _deck_values(room):
-    return {value.strip() for value in room.deck.split(",") if value.strip()}
+    return set(deck_values(room.deck))
+
+
+def _get_seated(room, participant_id):
+    """Trae a alguien que sigue en la mesa, o se niega.
+
+    Expulsar no borra la fila, así que una consulta por ``pk`` encuentra igualmente
+    al expulsado. Todo lo que actúe sobre un participante pasa por aquí: sin esto,
+    el socket que esa persona ya tenía abierto podría seguir votando después del
+    veto, y el veto no sería tal.
+    """
+    participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
+    if participant.removed_at is not None:
+        raise RoomActionError("Esa persona ya no está en la sala.")
+    return participant
 
 
 @transaction.atomic
@@ -42,7 +57,7 @@ def cast_vote(room_id, participant_id, value):
         raise RoomActionError(
             "Los votos están cerrados hasta que el facilitador inicie una nueva ronda."
         )
-    participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
+    participant = _get_seated(room, participant_id)
     if value is not None and value not in _deck_values(room):
         raise RoomActionError("Esa carta no está en la baraja de esta sala.")
 
@@ -60,14 +75,14 @@ def reset_round(room_id, actor):
 
     room.voting_status = "voting"
     room.save(update_fields=["voting_status"])
-    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
+    room.active_participants.update(current_vote=None, throws_this_round=0)
     return room
 
 
 def calculate_results(room):
     """Return display-safe aggregate information for a revealed round."""
     votes = list(
-        Participant.objects.filter(room=room)
+        room.active_participants
         .exclude(current_vote__isnull=True)
         .values_list("current_vote", flat=True)
     )
@@ -128,7 +143,7 @@ def activate_issue(room_id, issue_id, actor):
     room.save(update_fields=["active_issue", "voting_status"])
     issue.status = "active"
     issue.save(update_fields=["status"])
-    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
+    room.active_participants.update(current_vote=None, throws_this_round=0)
     return issue
 
 
@@ -154,7 +169,7 @@ def finish_active_issue(room_id, final_result, actor):
     room.active_issue = None
     room.voting_status = "voting"
     room.save(update_fields=["active_issue", "voting_status"])
-    Participant.objects.filter(room=room).update(current_vote=None, throws_this_round=0)
+    room.active_participants.update(current_vote=None, throws_this_round=0)
     return issue
 
 
@@ -167,7 +182,7 @@ def remind_participant(room_id, participant_id, actor):
     if room.voting_status != "voting":
         raise RoomActionError("Los recordatorios sólo funcionan con la votación abierta.")
 
-    participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
+    participant = _get_seated(room, participant_id)
     if participant.current_vote is not None:
         raise RoomActionError("Esta persona ya votó.")
     if participant.connection_count == 0:
@@ -213,8 +228,8 @@ def throw_item(room_id, thrower_id, target_id, item):
     if thrower_id == target_id:
         raise RoomActionError("Elige a otra persona de la mesa.")
 
-    thrower = Participant.objects.select_for_update().get(pk=thrower_id, room=room)
-    target = Participant.objects.select_for_update().get(pk=target_id, room=room)
+    thrower = _get_seated(room, thrower_id)
+    target = _get_seated(room, target_id)
     if target.connection_count == 0:
         raise RoomActionError("Esa persona no está en la mesa ahora mismo.")
 
@@ -230,6 +245,59 @@ def throw_item(room_id, thrower_id, target_id, item):
     thrower.throws_this_round += 1
     thrower.save(update_fields=["last_throw_at", "throws_this_round"])
     return thrower, target
+
+
+@transaction.atomic
+def set_deck(room_id, expanded, actor):
+    """Alterna la sala entre la baraja corta y la completa.
+
+    Sólo con la votación abierta: cambiarla con las cartas sobre la mesa reescribe
+    un resultado que la gente ya está discutiendo.
+
+    Al encoger se retiran los votos cuya carta deja de existir. La alternativa
+    —dejarlos— produce una mesa donde al revelar aparece un 55 que ya no se puede
+    elegir y que el promedio sigue contando: un número que nadie puede reproducir.
+    """
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+    _require_facilitator(room, actor)
+
+    if room.voting_status != "voting":
+        raise RoomActionError("La baraja sólo se cambia con la votación abierta.")
+
+    room.deck = FULL_DECK_VALUE if expanded else SHORT_DECK_VALUE
+    room.save(update_fields=["deck"])
+    room.active_participants.exclude(current_vote__isnull=True).exclude(
+        current_vote__in=_deck_values(room)
+    ).update(current_vote=None)
+    return room
+
+
+@transaction.atomic
+def remove_participant(room_id, participant_id, actor):
+    """Saca a alguien de la sala, para siempre en lo que dure la sala.
+
+    La fila no se borra y ahí está la gracia: guarda el ``guest_token`` —o el
+    usuario— con el que esa persona volvería a entrar, así que es el propio registro
+    el que sostiene el veto. Borrarla dejaría que volviese con el mismo enlace diez
+    segundos después, que es exactamente no haber expulsado a nadie.
+
+    Se retira el voto además del asiento: si se quedara, la mesa esperaría para
+    siempre a alguien que ya no está, y el promedio contaría su carta.
+    """
+    room = _get_locked_room(room_id)
+    _require_active_room(room)
+    _require_facilitator(room, actor)
+
+    participant = _get_seated(room, participant_id)
+    if participant.user_id and participant.user_id == room.owner_id:
+        raise RoomActionError("No puedes expulsarte a ti: la sala se quedaría sin facilitador.")
+
+    participant.removed_at = timezone.now()
+    participant.current_vote = None
+    participant.connection_count = 0
+    participant.save(update_fields=["removed_at", "current_vote", "connection_count"])
+    return participant
 
 
 @transaction.atomic
@@ -262,7 +330,7 @@ def set_identity(room_id, participant_id, pet, color_index):
     room = _get_locked_room(room_id)
     _require_active_room(room)
 
-    participant = Participant.objects.select_for_update().get(pk=participant_id, room=room)
+    participant = _get_seated(room, participant_id)
     if pet is not None:
         if pet not in PET_SLUGS:
             raise RoomActionError("Esa mascota no está en la lista.")

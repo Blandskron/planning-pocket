@@ -2,6 +2,7 @@
 
 {% block title %}{{ room.name }} · Planning Pocket{% endblock %}
 {% block shell_class %}room-shell{% endblock %}
+{% block body_class %}is-room{% endblock %}
 
 {% block content %}
 {% include 'rooms/_table_sprite.html' %}
@@ -19,6 +20,9 @@
                 </button>
                 <button class="room-switch" type="button" id="recess-switch" aria-pressed="{{ room.recess_open|yesno:'true,false' }}">
                     <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Recreo</span>
+                </button>
+                <button class="room-switch" type="button" id="deck-switch" aria-pressed="{{ deck_expanded|yesno:'true,false' }}" title="Añade 21, 34, 55, 89 y el café">
+                    <span class="switch-dot" aria-hidden="true"></span><span class="switch-label">Baraja larga</span>
                 </button>
             {% endif %}
             <button class="room-switch" type="button" id="effects-switch" aria-pressed="true">
@@ -145,6 +149,12 @@
                             <div class="seat-state" id="state-status-{{ p.id }}">{% if p.current_vote %}{% if p.id == participant.id %}Tu voto{% else %}Votó{% endif %}{% else %}Pensando{% endif %}</div>
                             {% if is_owner and p.id != participant.id %}
                                 <button class="seat-reminder" type="button" hidden onclick="remindParticipant({{ p.id }})">Recordar</button>
+                                {% comment %}
+                                Absoluto como el recordatorio, y por el mismo motivo: nada que
+                                cambie de tamaño durante la ronda puede estar en el flujo del
+                                asiento, o el anillo se redimensiona a mitad de partida.
+                                {% endcomment %}
+                                <button class="seat-remove" type="button" onclick="removeParticipant({{ p.id }}, '{{ p.display_name|escapejs }}')" aria-label="Expulsar a {{ p.display_name }} de la sala" title="Expulsar a {{ p.display_name }}">×</button>
                             {% endif %}
                         </article>
                     {% endwith %}{% endfor %}
@@ -226,6 +236,9 @@ const ITEM_LABELS = {
 {% for slug, label in throwables %}    '{{ slug }}': '{{ label }}',
 {% endfor %}};
 let votingStatus = "{{ room.voting_status }}";
+let deckExpanded = {{ deck_expanded|yesno:"true,false" }};
+/* Una vez expulsado no se vuelve a marcar: corta el bucle de reconexión. */
+let wasRemoved = false;
 
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
@@ -535,6 +548,32 @@ function updateControls(activeIssue) {
     document.getElementById('deck-help').textContent = votingStatus === 'revealed'
         ? 'Los votos están sobre la mesa. Inicia una nueva ronda para continuar.'
         : 'Tu elección permanece privada hasta el reveal.';
+}
+
+/* La mano se vuelve a repartir cuando cambia la baraja. Se reconstruye entera en
+   vez de añadir y quitar cartas sueltas porque el abanico depende de `--card-index`
+   y `--card-total`: con una carta de más o de menos, los ángulos que quedan son los
+   de la mano anterior. */
+function renderDeck(cards) {
+    const deck = document.getElementById('deck');
+    deck.replaceChildren();
+    cards.forEach((card, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'poker-card' + (card === 'Coffee' ? ' is-wide-value' : '');
+        button.style.setProperty('--card-index', index);
+        button.style.setProperty('--card-total', cards.length);
+        button.setAttribute('aria-label', 'Votar ' + card);
+        button.setAttribute('aria-pressed', 'false');
+        button.disabled = votingStatus === 'revealed';
+        const value = document.createElement('span');
+        value.textContent = card;
+        button.append(value);
+        button.addEventListener('click', () => castVote(card, button));
+        deck.append(button);
+    });
+    syncSelectedCard();
+    syncDeckDock();
 }
 
 function syncSelectedCard() {
@@ -992,6 +1031,8 @@ function connect() {
             votingStatus = data.payload.room.voting_status;
             currentIssue = data.payload.active_issue;
             allowPlayful = data.payload.room.allow_playful_actions;
+            deckExpanded = data.payload.room.deck_expanded;
+            if (deckSwitch) deckSwitch.setAttribute('aria-pressed', String(deckExpanded));
             const recessWas = recessOpen;
             recessOpen = data.payload.room.recess_open;
             data.payload.participants.forEach(renderParticipant);
@@ -1014,6 +1055,29 @@ function connect() {
         } else if (data.type === 'participant.reminded') {
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) { seat.classList.remove('is-reminded'); void seat.offsetWidth; seat.classList.add('is-reminded'); }
+        } else if (data.type === 'participant.removed') {
+            if (data.participant_id === myParticipantId) {
+                /* El servidor ya cerró este socket. Marcarlo evita que onclose
+                   intente reconectar contra una sala de la que ya no formo parte. */
+                wasRemoved = true;
+                window.location.reload();
+                return;
+            }
+            const seat = document.getElementById('participant-' + data.participant_id);
+            if (seat) { seat.remove(); layoutSeats(); syncTableMarks(); syncThrowTargets(); }
+            walkers.delete(data.participant_id);
+        } else if (data.type === 'room.deck_changed') {
+            deckExpanded = data.expanded;
+            if (deckSwitch) deckSwitch.setAttribute('aria-pressed', String(deckExpanded));
+            if (data.cleared_participant_ids.includes(myParticipantId)) {
+                myCurrentVote = null;
+                showToast('Tu carta ya no está en la baraja: vuelve a votar.', true);
+            }
+            renderDeck(data.deck);
+            data.cleared_participant_ids.forEach(id => {
+                const seat = document.getElementById('participant-' + id);
+                if (seat) renderParticipant({id, has_voted: false, is_online: !seat.classList.contains('is-offline'), current_vote: null});
+            });
         } else if (data.type === 'participant.updated') {
             renderParticipant(data.participant);
         } else if (data.type === 'player.moved') {
@@ -1057,7 +1121,19 @@ function connect() {
             updateControls(false);
         } else if (data.type === 'error') showToast(data.message || 'No se pudo completar la acción.', true);
     };
-    ws.onclose = () => { status.classList.remove('is-live'); status.title = 'Reconectando'; status.querySelector('.connection-label').textContent = 'Reconectando'; window.setTimeout(connect, 2000); };
+    ws.onclose = event => {
+        status.classList.remove('is-live');
+        /* 4403 es «este socket no te corresponde»: lo manda el consumer cuando ya
+           no estás en la mesa. Reintentar sería golpear la puerta cada dos segundos. */
+        if (wasRemoved || event.code === 4403) {
+            status.title = 'Fuera de la sala';
+            status.querySelector('.connection-label').textContent = 'Fuera de la sala';
+            return;
+        }
+        status.title = 'Reconectando';
+        status.querySelector('.connection-label').textContent = 'Reconectando';
+        window.setTimeout(connect, 2000);
+    };
 }
 
 function send(type, payload = {}) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type, ...payload})); }
@@ -1073,6 +1149,15 @@ function revealRoom() { send('room.reveal'); }
 function resetRoom() { send('room.reset'); }
 function activateIssue(issueId) { send('issue.activate', {issue_id: issueId}); }
 function remindParticipant(participantId) { send('participant.remind', {participant_id: participantId}); }
+/* Expulsar no se deshace desde aquí, así que se pregunta. El servidor vuelve a
+   comprobar quién lo pidió: esta confirmación evita el resbalón, no el abuso. */
+function removeParticipant(participantId, displayName) {
+    const ok = window.confirm(
+        '¿Expulsar a ' + displayName + ' de la sala?\n\n' +
+        'Saldrá de la mesa y este enlace dejará de funcionar para esa persona.'
+    );
+    if (ok) send('participant.remove', {participant_id: participantId});
+}
 function finishIssue() {
     const input = document.getElementById('final-result-input');
     if (input.value) { send('issue.finish', {final_result: input.value}); input.value = ''; }
@@ -1138,6 +1223,11 @@ if (recessSwitch) {
     recessSwitch.title = 'Abrir o cerrar el recreo para toda la sala';
 }
 
+const deckSwitch = document.getElementById('deck-switch');
+if (deckSwitch) {
+    deckSwitch.addEventListener('click', () => send('room.set_deck', {expanded: !deckExpanded}));
+}
+
 const playfulSwitch = document.getElementById('playful-switch');
 if (playfulSwitch) {
     playfulSwitch.addEventListener('click', () => {
@@ -1149,11 +1239,27 @@ if (playfulSwitch) {
 document.getElementById('share-room').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); } catch { showToast('Copia el enlace desde la barra del navegador.', true); }
 });
+/* En el teléfono la baraja va anclada al borde inferior. Su altura cambia con la
+   bandeja de objetos y con el tamaño de la pantalla, así que se mide y se le
+   cuenta al CSS: reservar un hueco fijo deja la última historia tapada o un
+   vacío debajo de la mesa, según el caso. */
+const deckDock = document.getElementById('room-deck-wrap');
+function syncDeckDock() {
+    const docked = getComputedStyle(deckDock).position === 'fixed';
+    document.documentElement.style.setProperty(
+        '--deck-dock-height',
+        docked ? Math.ceil(deckDock.getBoundingClientRect().height) + 'px' : '0px'
+    );
+}
+if (window.ResizeObserver) new ResizeObserver(syncDeckDock).observe(deckDock);
+window.addEventListener('resize', syncDeckDock);
+
 layoutSeats();
 syncTableMarks();
 setEffects(effectsOn);
 setSound(soundOn);
 syncThrowTargets();
+syncDeckDock();
 connect();
 </script>
 {% endblock %}
