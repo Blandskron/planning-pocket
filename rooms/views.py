@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Blandskron. All rights reserved.
 # Author: Bastian Landskron (Cybersecurity, DevOps & AI)
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -10,6 +12,7 @@ from .forms import GuestJoinForm, IssueForm, PokerRoomForm
 from .identity import COLOR_CHOICES, PETS
 from .models import Participant, PokerRoom
 from .playful import THROWABLES
+from .services import RoomFullError, require_free_seat
 
 
 @login_required
@@ -49,11 +52,15 @@ def room_detail(request, public_id):
 
     if request.user.is_authenticated:
         # Get or create participant for authenticated user
-        participant, _ = Participant.objects.get_or_create(
-            room=room,
-            user=request.user,
-            defaults={'display_name': request.user.username}
-        )
+        participant = Participant.objects.filter(room=room, user=request.user).first()
+        if participant is None:
+            try:
+                require_free_seat(room)
+            except RoomFullError:
+                return render(request, 'rooms/room_full.html', {'room': room})
+            participant = Participant.objects.create(
+                room=room, user=request.user, display_name=request.user.username
+            )
         if participant.is_removed:
             return render(request, 'rooms/room_removed.html', {'room': room})
     else:
@@ -73,6 +80,10 @@ def room_detail(request, public_id):
             if request.method == 'POST':
                 form = GuestJoinForm(request.POST)
                 if form.is_valid():
+                    try:
+                        require_free_seat(room)
+                    except RoomFullError:
+                        return render(request, 'rooms/room_full.html', {'room': room})
                     participant = Participant.objects.create(
                         room=room,
                         display_name=form.cleaned_data['display_name'],
@@ -125,6 +136,14 @@ def close_room(request, public_id):
 
     if request.method == 'POST':
         room.close_room()
+        # Cerrar una sala era sólo una fila en la base: quien ya estaba dentro seguía
+        # con el socket abierto y sin enterarse. El aviso va por el mismo canal que
+        # todo lo demás, y el cliente recarga para que la vista decida qué ve cada uno.
+        layer = get_channel_layer()
+        if layer is not None:
+            async_to_sync(layer.group_send)(
+                f'room_{room.public_id}', {'type': 'room.closed'}
+            )
         return redirect('dashboard')
 
     return render(request, 'rooms/close_room_confirm.html', {'room': room})

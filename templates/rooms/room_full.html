@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% comment %}
+Una sala llena no es un error del usuario ni una sala cerrada: existe, sigue en marcha
+y simplemente no queda sitio. Decir cualquiera de las otras dos cosas manda a esa
+persona a molestar a quien no debe.
+{% endcomment %}
+{% block title %}Sala llena · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
+{% block content %}
+<section class="decision-card"><span class="decision-icon" aria-hidden="true">—</span><span class="eyebrow">No queda sitio</span><h1>La mesa está llena</h1><p>La sala <strong>{{ room.name }}</strong> ha llegado a su tope de participantes. Si alguien sale, se libera su asiento; si de verdad sois tantos, probablemente convenga partir la estimación en dos sesiones.</p><a href="{% url 'dashboard' %}" class="button button-primary">Ir al inicio</a></section>
+{% endblock %}

@@ -15,6 +15,26 @@ class RoomActionError(Exception):
     """Raised when an action is not valid for the room's current state."""
 
 
+class RoomFullError(RoomActionError):
+    """Raised when a room has no seats left."""
+
+
+# Una sala sin tope es una sala que cualquiera con el enlace puede llenar: cada
+# participante nuevo multiplica el reparto de todos los eventos de la sala, así que el
+# coste no crece con N sino con N². Treinta asientos están muy por encima de cualquier
+# equipo que estime junto y muy por debajo de lo que duele.
+MAX_PARTICIPANTS = 30
+
+
+def room_has_a_free_seat(room):
+    return room.active_participants.count() < MAX_PARTICIPANTS
+
+
+def require_free_seat(room):
+    if not room_has_a_free_seat(room):
+        raise RoomFullError("Esta sala está llena.")
+
+
 def _get_locked_room(room_id):
     return PokerRoom.objects.select_for_update().get(pk=room_id)
 

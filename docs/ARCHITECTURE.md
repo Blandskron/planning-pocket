@@ -38,6 +38,9 @@ Transiciones válidas:
 ## 5. Protocolo WebSocket Inicial
 La comunicación WebSocket transmitirá principalmente actualizaciones de estado.
 
+El estado de cada participante incluye `is_facilitator`. No es secreto —sus controles se
+ven— y sin él nadie en la mesa podía saber quién lleva la sala.
+
 **Estructura del Mensaje Base:**
 ```json
 {
@@ -70,6 +73,9 @@ La comunicación WebSocket transmitirá principalmente actualizaciones de estado
   el voto, ni el motivo, ni quién lo decidió. Al expulsado le llega este evento y
   acto seguido se le cierra el socket con el código `4403`; el resto de la mesa ve
   desaparecer el asiento sin recargar.
+- `room.closed`: El facilitador cerró la sala. Sin payload. Lo emite la vista HTTP de
+  cierre, que hasta entonces sólo escribía una fila: los sockets abiertos seguían vivos
+  y nadie dentro se enteraba. El cliente recarga para que la vista decida qué ve cada uno.
 - `room.deck_changed`: El facilitador alternó entre las dos barajas. Lleva
   `{"deck": [...], "expanded": true|false, "cleared_participant_ids": [3, 9]}`. La
   última lista es quién se quedó sin voto porque su carta ya no existe: sin ella esas

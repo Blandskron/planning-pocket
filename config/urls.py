@@ -10,12 +10,6 @@ from django.urls import include, path
 def health_check(request):
     return JsonResponse({"status": "ok"})
 
-def handler404(request, exception):
-    return JsonResponse({"error": "Not found"}, status=404)
-
-def handler500(request):
-    return JsonResponse({"error": "Server error"}, status=500)
-
 def home_redirect(request):
     return redirect('dashboard')
 

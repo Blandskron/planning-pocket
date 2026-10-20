@@ -85,7 +85,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'config.middleware.ContentSecurityPolicyMiddleware',
 ]
+
+# Para estrenar la política sin romper nada: la cabecera se manda en modo informe y
+# el navegador avisa en consola en vez de bloquear.
+CSP_REPORT_ONLY = os.environ.get('DJANGO_CSP_REPORT_ONLY', 'False').lower() == 'true'
 
 ROOT_URLCONF = 'config.urls'
 
@@ -99,6 +104,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'config.middleware.csp_nonce',
             ],
         },
     },
@@ -159,7 +165,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# El producto está íntegramente en español. Con 'en-us', cualquier mensaje de
+# validación que no se sobrescriba a mano sale en inglés y las fechas se formatean
+# al revés.
+LANGUAGE_CODE = 'es'
 
 TIME_ZONE = 'UTC'
 
@@ -184,6 +193,8 @@ STORAGES = {
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# MAILERS es la API de correo de Django 6.1; EMAIL_BACKEND está deprecado y Django lo
+# retira en 7.0. Definir los dos a la vez es un error de configuración, no una opción.
 MAILERS = {
     'default': {
         'BACKEND': os.environ.get(
@@ -192,6 +203,63 @@ MAILERS = {
             if DEBUG
             else 'django.core.mail.backends.smtp.EmailBackend',
         ),
+    },
+}
+
+# Caché. Redis cuando está disponible —es el mismo que ya usa la capa de canales— y
+# memoria local en desarrollo. Hace falta para los contadores de intentos de acceso:
+# con LocMemCache cada proceso lleva los suyos, así que en producción el límite sólo
+# es real si hay Redis.
+if os.environ.get('REDIS_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.environ.get('REDIS_URL'),
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'planning-pocket',
+        }
+    }
+
+# Registro. Sin esto, un 500 con DEBUG=False iba a `mail_admins`, que sin ADMINS no va
+# a ninguna parte: los errores sólo existían en el stdout de daphne. Así es como el
+# fallo de lectura de Redis vivió sin que nadie se enterara.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'detallado': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'consola': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'detallado',
+        },
+    },
+    'root': {
+        'handlers': ['consola'],
+        'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+    },
+    'loggers': {
+        # Las excepciones de vista, con traza, aunque DEBUG esté apagado.
+        'django.request': {
+            'handlers': ['consola'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # El consumer corre bajo este: aquí aparecieron los TimeoutError de Redis.
+        'daphne': {
+            'handlers': ['consola'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 

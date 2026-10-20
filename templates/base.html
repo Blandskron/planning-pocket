@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Planning Pocket">
     <title>{% block title %}Planning Pocket{% endblock %}</title>
-    <script>
+    <script nonce="{{ csp_nonce }}">
         (() => {
             let theme = null;
             try { theme = localStorage.getItem('planning-pocket-theme'); } catch (_) {}
@@ -101,7 +101,7 @@
         {% endif %}
     </nav>
     {% endwith %}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         const root = document.documentElement;
         const themeToggle = document.getElementById('theme-toggle');
         /* La barra de estado del teléfono se pinta con este meta. Si no se

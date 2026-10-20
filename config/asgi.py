@@ -19,29 +19,13 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Auto-create superuser if credentials are in environment
-from django.contrib.auth import get_user_model  # noqa: E402
-
+# Nada de efectos secundarios aquí. Este módulo se importa una vez por proceso ASGI,
+# antes de que las migraciones puedan haber pasado, así que cualquier consulta en este
+# punto corre en el peor momento posible. La creación del superusuario vive en
+# docker-entrypoint.sh y en build.sh, que corren una vez y en el orden correcto.
 django_asgi_app = get_asgi_application()
 
 import rooms.routing  # noqa: E402
-
-User = get_user_model()
-su_username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
-su_email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
-su_password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
-
-if su_username and su_password:
-    try:
-        if not User.objects.filter(username=su_username).exists():
-            User.objects.create_superuser(
-                username=su_username,
-                email=su_email,
-                password=su_password
-            )
-            print(f"Superuser '{su_username}' created successfully.")
-    except Exception as e:
-        print(f"Failed to auto-create superuser: {e}")
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,

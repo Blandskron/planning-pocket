@@ -210,3 +210,68 @@ IP: castigaría a toda una oficina detrás del mismo NAT.
 **Alternativa descartada:** una expulsión blanda, que sólo saca de la mesa y deja
 volver. Es mucho más simple —no hay nada que persistir— pero sirve para limpiar un
 nombre mal escrito, no para apartar a alguien, que es lo que se pidió.
+
+---
+
+## ADR-008 — Endurecimiento tras la revisión de seguridad
+
+**Estado:** Aceptado
+
+**Decisión:** Cerrar los huecos que encontró una revisión completa del código. No es una
+funcionalidad nueva: es la diferencia entre un modelo de autorización correcto sobre el
+papel y uno que también lo es cuando alguien empuja.
+
+**Los tres que importan, y por qué no se veían:**
+
+1. **Sin límite en lo que escribe.** Las acciones decorativas tenían freno —lanzar espera
+   2,5 s, moverse 110 ms— y votar no tenía ninguno. Medido contra el contenedor: 300
+   `vote.cast` seguidos, cero errores, reparto completo. Cada uno es un `SELECT FOR
+   UPDATE` sobre la sala más N frames. Y como la sala no tenía tope, N lo elegía el
+   atacante. Ahora hay ventana deslizante por conexión y `MAX_PARTICIPANTS`.
+
+2. **La sesión no alcanzaba a los sockets abiertos.** `AuthMiddlewareStack` resuelve
+   `scope["user"]` una vez, al conectar, y ahí leían todas las comprobaciones de
+   facilitador. Cerrar sesión no le quitaba el control de la sala a nadie hasta que
+   cerrase la pestaña. `live_actor()` relee la sesión en cada acción de facilitador.
+
+   Esto obligó a cambiar el banco de pruebas: los tests de WebSocket autenticaban
+   poniendo `scope["user"]` a mano, que es algo que producción nunca hace. Ahora crean
+   una sesión real. Un banco que se salta la sesión no prueba el camino que importa.
+
+3. **Sin CSP.** Mil líneas de JavaScript en línea, manejadores `onclick` incrustados y un
+   `innerHTML` alimentado con el nombre que escribe un invitado. Ese `innerHTML` se
+   defendía borrando comillas dobles y **no llegaba a ser explotable** —verificado en
+   navegador con cuatro payloads, cero ejecuciones— pero era una lista negra en un sink
+   de HTML. Ahora se construye nodo a nodo, los `onclick` son listeners delegados, y la
+   política con nonce impide que un script inyectado corra aunque entre.
+
+**Lo demás, en una línea cada uno:**
+
+- `player.move` era la única acción que no pasa por `rooms/services.py`, y por tanto la
+  única sin `_require_active_room`: se podía pasear por una sala cerrada. Ahora el cierre
+  cierra el recreo y avisa por el canal, de modo que cerrar una sala alcanza a quien ya
+  está dentro en vez de ser sólo una fila en la base.
+- Fuerza bruta: `accounts/throttling.py`, contando por usuario y no por IP, porque detrás
+  de un proxy contar por IP es confiar en una cabecera falsificable o castigar a toda una
+  oficina.
+- Nadie podía saber quién era el facilitador: la insignia existía sólo en su propia barra.
+  `is_facilitator` viaja ahora en el estado del participante.
+- `PokerRoom.reset_voting()` era código muerto **y además saltaba la autorización**: quien
+  lo llamara reiniciaba la ronda sin pasar por `_require_facilitator`. Borrado.
+- `config/asgi.py` creaba el superusuario en tiempo de importación, con un `except
+  Exception` mudo, duplicando lo que ya hacen el entrypoint y `build.sh`. Borrado.
+- Una 404 devolvía `{"error": "Not found"}` en JSON. El producto entero entra por un
+  enlace compartido, así que teclear mal el enlace es el error más probable que existe.
+- `LANGUAGE_CODE` era `en-us` en un producto en español, y no había `LOGGING`: los 500
+  iban a `mail_admins` sin `ADMINS`, o sea a ninguna parte. Así vivió el fallo de Redis.
+
+**Un hallazgo de la revisión resultó ser falso**, y conviene dejarlo escrito para que nadie
+lo "arregle": el bloque `MAILERS` de `settings.py` parece configuración muerta porque no
+aparece en `django.conf.global_settings`. No lo es. `MAILERS` es la API de correo de
+Django 6.1 y `EMAIL_BACKEND` está deprecado, retirado en 7.0; definir los dos a la vez es
+un error de configuración. El código estaba bien.
+
+**Concesión explícita:** `style-src` admite `'unsafe-inline'`. La mesa coloca cada asiento
+escribiendo `style="--seat-angle: …"`, y un atributo de estilo no se puede firmar con
+nonce. Quitarlo exigiría mover la geometría del anillo a clases, que es precisamente lo
+que el ADR anterior evitó para no tocar una geometría verificada al píxel.

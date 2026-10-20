@@ -36,7 +36,60 @@ La aplicación ASGI aplica `AllowedHostsOriginValidator`. Los clientes con un or
   - Se aplicarán validaciones de longitud máxima y saneamiento básico de texto libre.
 
 Los eventos WebSocket se insertan en el DOM mediante nodos y `textContent`, nunca interpolando
-HTML con datos de participantes o issues.
+HTML con datos de participantes o issues. Esto dejó de ser una promesa y pasó a ser cierto en la
+revisión de seguridad: quedaba un `innerHTML` en `createParticipantCard` que metía el nombre del
+invitado en un atributo con una única defensa, borrar comillas dobles. No llegó a ser explotable
+—dentro de un valor entrecomillado `<` y `>` son inertes, y se verificó en navegador con cuatro
+payloads: cero ejecuciones— pero era una lista negra en un sink de HTML, y ahora se construye
+nodo a nodo con `setAttribute`.
+
+## 7. Content-Security-Policy
+
+- **Riesgo:** La sala ejecuta cerca de mil líneas de JavaScript en línea. Cualquier inyección de
+  HTML que llegue al DOM se convierte en ejecución de código.
+- **Mitigación:** `config/middleware.py` emite una CSP con nonce por petición. `script-src` sólo
+  admite el propio origen y el nonce de esa respuesta, así que un script inyectado no corre
+  aunque consiga entrar en el documento. `style-src` sí admite `'unsafe-inline'`: la mesa coloca
+  los asientos con atributos `style`, que no se pueden firmar. La protección que importa está en
+  `script-src`.
+- `DJANGO_CSP_REPORT_ONLY=true` cambia a modo informe para estrenar cambios sin bloquear.
+
+## 8. Agotamiento de recursos
+
+- **Riesgo:** Las acciones decorativas tenían freno —lanzar espera 2,5 s, moverse 110 ms— y las
+  que escriben en la base no tenían ninguno. Medido: 300 `vote.cast` seguidos, cero errores,
+  reparto completo a toda la mesa. Con salas sin tope, el coste crece con el cuadrado del número
+  de participantes.
+- **Mitigación:** ventana deslizante por conexión en el consumer para toda acción que escriba
+  (`WRITE_MAX_IN_WINDOW` en `WRITE_WINDOW_SECONDS`), y `MAX_PARTICIPANTS` por sala. El cliente
+  deshace su selección optimista cuando el servidor rechaza, para que la pantalla no diga algo
+  distinto de la mesa.
+
+## 9. Vigencia de la sesión en sockets abiertos
+
+- **Riesgo:** `AuthMiddlewareStack` resuelve `scope["user"]` una sola vez, al conectar. Si la
+  autorización se queda ahí, cerrar sesión no le quita a nadie el control de la sala hasta que
+  cierre la pestaña: sigue pudiendo revelar, reiniciar, cambiar la baraja y expulsar.
+- **Mitigación:** `PokerConsumer.live_actor()` relee la sesión del almacén en cada acción de
+  facilitador y delega en `django.contrib.auth.get_user`, que además comprueba el hash de sesión,
+  así que un cambio de contraseña también corta el socket abierto.
+
+## 10. Fuerza bruta sobre el acceso
+
+- **Riesgo:** Ni el login ni el registro tenían freno.
+- **Mitigación:** `accounts/throttling.py` cuenta intentos fallidos **por nombre de usuario**, no
+  por IP. La aplicación corre detrás de un proxy, así que contar por IP obliga a confiar en una
+  cabecera que cualquiera puede escribir, o a meter a toda la empresa en el mismo cubo. El coste
+  conocido es que se puede bloquear una cuenta ajena a propósito: por eso la ventana es corta, no
+  se renueva con cada intento, y entrar bien borra el contador.
+
+## 11. Suplantación del facilitador
+
+- **Riesgo:** Un invitado puede ponerse el nombre del facilitador. La insignia existía sólo en la
+  barra del propio facilitador, así que nadie más en la mesa podía distinguirlos. Desde que el
+  facilitador puede expulsar, dejó de ser cosmético.
+- **Mitigación:** `is_facilitator` viaja en el estado del participante —no es secreto, sus
+  controles se ven— y la mesa dibuja la marca en el asiento.
 
 ## 7. Configuración de producción
 

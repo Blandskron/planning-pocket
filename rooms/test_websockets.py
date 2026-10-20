@@ -1,7 +1,16 @@
+from importlib import import_module
+
 import pytest
 from asgiref.sync import sync_to_async
+from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
-from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.contrib.auth import (
+    BACKEND_SESSION_KEY,
+    HASH_SESSION_KEY,
+    SESSION_KEY,
+    get_user_model,
+)
 
 from config.asgi import application
 from rooms.consumers import PokerConsumer
@@ -10,10 +19,28 @@ from rooms.models import Issue, Participant, PokerRoom
 User = get_user_model()
 
 
+def _logged_in_session(user):
+    """Una sesión real, como la que deja `login()`.
+
+    Poner `scope["user"]` a mano es una autenticación que producción nunca hace: el
+    consumer relee la sesión del almacén en cada acción de facilitador, justamente para
+    que cerrar sesión le quite el control de la sala a quien ya tiene el socket abierto.
+    Un banco de pruebas que se salte la sesión no prueba ese camino.
+    """
+    engine = import_module(settings.SESSION_ENGINE)
+    session = engine.SessionStore()
+    session[SESSION_KEY] = str(user.pk)
+    session[BACKEND_SESSION_KEY] = settings.AUTHENTICATION_BACKENDS[0]
+    session[HASH_SESSION_KEY] = user.get_session_auth_hash()
+    session.save()
+    return session
+
+
 async def connect_participant(room, user):
     communicator = WebsocketCommunicator(PokerConsumer.as_asgi(), "/ws/test/")
     communicator.scope["url_route"] = {"kwargs": {"public_id": room.public_id}}
     communicator.scope["user"] = user
+    communicator.scope["session"] = await sync_to_async(_logged_in_session)(user)
     connected, _ = await communicator.connect()
     assert connected
     state = await communicator.receive_json_from()
@@ -53,6 +80,7 @@ async def test_websocket_state_hides_votes_before_reveal():
         "display_name": "Guest",
         "has_voted": True,
         "is_online": False,
+        "is_facilitator": False,
         "current_vote": None,
         **guest.identity,
     }
@@ -525,3 +553,115 @@ async def test_a_guest_cannot_change_the_deck():
     assert "55" not in room.deck
 
     await guest_socket.disconnect()
+
+
+# --------------------------------------------------------------------------- #
+# Endurecimiento: de quién es la autoridad y a qué ritmo se puede escribir.
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_closing_the_session_takes_the_room_away_from_an_open_socket():
+    """El socket abierto no es un salvoconducto.
+
+    `scope["user"]` se resuelve una sola vez, al conectar. Si la autorización se
+    quedara ahí, cerrar sesión no le quitaría a nadie el control de la sala hasta que
+    cerrase la pestaña: seguiría pudiendo revelar, reiniciar y expulsar.
+    """
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+
+    facilitator, _ = await connect_participant(room, owner)
+
+    # Con la sesión viva, revelar funciona.
+    await facilitator.send_json_to({"type": "room.reveal"})
+    await wait_for(facilitator, "room.revealed")
+
+    # El equivalente a cerrar sesión: la sesión desaparece del almacén.
+    await sync_to_async(facilitator.scope["session"].flush)()
+
+    await facilitator.send_json_to({"type": "room.reset"})
+    error = await wait_for(facilitator, "error")
+    assert error["code"] == "invalid_action"
+    assert "facilitador" in error["message"], (
+        "el socket conservó los poderes de facilitador después de cerrar sesión"
+    )
+
+    await sync_to_async(room.refresh_from_db)()
+    assert room.voting_status == "revealed", "la ronda se reinició sin sesión válida"
+
+    await facilitator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_a_flood_of_votes_is_cut_off_instead_of_written():
+    """Hasta ahora lo decorativo tenía freno y lo caro no.
+
+    Cada voto es un SELECT FOR UPDATE sobre la sala más un reparto a toda la mesa, y
+    se podían encadenar sin límite. Medido contra el contenedor: 300 enviados, 0
+    errores, reparto completo.
+    """
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(owner=owner, name="WS room")
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+
+    socket, _ = await connect_participant(room, owner)
+    # Conectar difunde un `participant.joined` que no es una escritura: fuera de la cuenta.
+    while not await socket.receive_nothing(timeout=0.2):
+        await socket.receive_json_from()
+
+    exceso = 6
+    for index in range(PokerConsumer.WRITE_MAX_IN_WINDOW + exceso):
+        await socket.send_json_to({"type": "vote.cast", "value": "8" if index % 2 else "5"})
+
+    aceptados, rechazados = 0, 0
+    while not await socket.receive_nothing(timeout=0.5):
+        event = await socket.receive_json_from()
+        if event["type"] == "error" and event.get("code") == "too_many_actions":
+            rechazados += 1
+        elif event["type"] == "participant.voted":
+            aceptados += 1
+
+    assert aceptados == PokerConsumer.WRITE_MAX_IN_WINDOW, (
+        f"la ventana dejó pasar {aceptados} escrituras"
+    )
+    assert rechazados == exceso
+
+    # Rechazar no es desconectar: quien se pasa de rápido sigue en la sala.
+    assert socket.scope is not None
+    await socket.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_moving_stops_when_the_room_closes():
+    """`player.move` es la única acción que no pasa por los servicios, así que es la
+    única que no hereda la comprobación de sala activa."""
+    owner = await sync_to_async(User.objects.create_user)(username="owner", password="pwd")
+    room = await sync_to_async(PokerRoom.objects.create)(
+        owner=owner, name="WS room", recess_open=True
+    )
+    await sync_to_async(Participant.objects.create)(room=room, user=owner, display_name="Owner")
+    guest = await sync_to_async(Participant.objects.create)(room=room, display_name="Guest")
+
+    walker = await connect_guest(room, guest)
+    await walker.connect()
+    await walker.receive_json_from()
+
+    await walker.send_json_to({"type": "player.move", "x": 0.4, "y": 0.6})
+    moved = await wait_for(walker, "player.moved")
+    assert moved["participant_id"] == guest.id
+
+    # Cerrar la sala es lo que hace la vista HTTP, aviso por el canal incluido.
+    await sync_to_async(room.close_room)()
+    await get_channel_layer().group_send(f"room_{room.public_id}", {"type": "room.closed"})
+    await wait_for(walker, "room.closed")
+
+    await walker.send_json_to({"type": "player.move", "x": 0.9, "y": 0.1})
+    assert await walker.receive_nothing(timeout=0.4), (
+        "se seguían retransmitiendo posiciones en una sala cerrada"
+    )
+
+    await walker.disconnect()

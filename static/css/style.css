@@ -573,6 +573,10 @@ button.seat-avatar:hover:not(:disabled)::after, button.seat-avatar:focus-visible
 .is-me .participant-face { border-color: #f3bd78; box-shadow: 0 0 0 3px rgba(243,189,120,0.28), 0 7px 15px rgba(13,32,27,0.22); }
 .seat-name { max-width: calc(var(--seat-w) - 2px); padding: 0.08rem 0.28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 5px; color: var(--text-soft); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 1px 3px rgba(13,32,27,0.1); font-size: 0.7rem; font-weight: 820; }
 .seat-name span { margin-left: 0.25rem; padding: 0.08rem 0.28rem; border-radius: 4px; color: var(--accent); background: var(--accent-soft); font-size: 0.53rem; }
+/* Quién lleva la sala, dicho en la mesa y no sólo en la barra del propio facilitador.
+   Ámbar, no rosa: es información sobre una persona, no una acción que se pulsa, y
+   tiene que distinguirse de la pastilla «Tú» que lleva al lado. */
+.seat-crown { color: var(--warning) !important; background: var(--warning-soft) !important; }
 .seat-state { padding: 0.05rem 0.24rem; border-radius: 4px; color: var(--muted); background: color-mix(in srgb, var(--surface) 90%, transparent); font-size: 0.6rem; font-weight: 650; }
 .has-voted .seat-state { color: var(--success); }
 .is-thinking .seat-state { color: var(--warning); }

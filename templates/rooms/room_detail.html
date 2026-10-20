@@ -84,7 +84,7 @@
                             <span>{{ issue.title }}</span>
                         </div>
                         {% if is_owner and issue.status != 'estimated' %}
-                            <button class="issue-activate" type="button" onclick="activateIssue({{ issue.id }})" aria-label="Estimar {{ issue.title }}">Estimar</button>
+                            <button class="issue-activate" type="button" data-activate-issue="{{ issue.id }}" aria-label="Estimar {{ issue.title }}">Estimar</button>
                         {% endif %}
                     </li>
                 {% empty %}
@@ -145,16 +145,16 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="seat-name">{{ p.display_name }}{% if p.id == participant.id %}<span>Tú</span>{% endif %}</div>
+                            <div class="seat-name">{{ p.display_name }}{% if p.user_id == room.owner_id %}<span class="seat-crown" title="Lleva esta sala">Facilita</span>{% endif %}{% if p.id == participant.id %}<span>Tú</span>{% endif %}</div>
                             <div class="seat-state" id="state-status-{{ p.id }}">{% if p.current_vote %}{% if p.id == participant.id %}Tu voto{% else %}Votó{% endif %}{% else %}Pensando{% endif %}</div>
                             {% if is_owner and p.id != participant.id %}
-                                <button class="seat-reminder" type="button" hidden onclick="remindParticipant({{ p.id }})">Recordar</button>
+                                <button class="seat-reminder" type="button" hidden data-remind="{{ p.id }}">Recordar</button>
                                 {% comment %}
                                 Absoluto como el recordatorio, y por el mismo motivo: nada que
                                 cambie de tamaño durante la ronda puede estar en el flujo del
                                 asiento, o el anillo se redimensiona a mitad de partida.
                                 {% endcomment %}
-                                <button class="seat-remove" type="button" onclick="removeParticipant({{ p.id }}, '{{ p.display_name|escapejs }}')" aria-label="Expulsar a {{ p.display_name }} de la sala" title="Expulsar a {{ p.display_name }}">×</button>
+                                <button class="seat-remove" type="button" data-remove="{{ p.id }}" data-name="{{ p.display_name }}" aria-label="Expulsar a {{ p.display_name }} de la sala" title="Expulsar a {{ p.display_name }}">×</button>
                             {% endif %}
                         </article>
                     {% endwith %}{% endfor %}
@@ -173,12 +173,12 @@
 
             <div class="room-controls">
                 {% if is_owner %}
-                    <button class="room-button room-button-primary" id="reveal-button" type="button" onclick="revealRoom()"><span aria-hidden="true">◇</span> Revelar votos</button>
-                    <button class="room-button room-button-secondary" id="reset-button" type="button" onclick="resetRoom()"><span aria-hidden="true">↻</span> Nueva ronda</button>
+                    <button class="room-button room-button-primary" id="reveal-button" type="button"><span aria-hidden="true">◇</span> Revelar votos</button>
+                    <button class="room-button room-button-secondary" id="reset-button" type="button"><span aria-hidden="true">↻</span> Nueva ronda</button>
                     <div id="finish-issue-panel" class="finish-issue" {% if room.voting_status != 'revealed' or not room.active_issue %}hidden{% endif %}>
                         <label class="sr-only" for="final-result-input">Estimación final</label>
                         <input type="text" id="final-result-input" placeholder="Estimación final" inputmode="decimal">
-                        <button class="room-button room-button-primary" type="button" onclick="finishIssue()">Guardar</button>
+                        <button class="room-button room-button-primary" type="button" id="finish-issue-button">Guardar</button>
                     </div>
                 {% endif %}
             </div>
@@ -188,7 +188,7 @@
             <div class="deck-heading"><div><span class="deck-eyebrow">Tu baraja</span><strong>Elige una carta</strong></div><span id="deck-help">Tu elección permanece privada hasta el reveal.</span></div>
             <div class="deck" id="deck">
                 {% for card in deck_cards %}
-                    <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" style="--card-index: {{ forloop.counter0 }}; --card-total: {{ deck_cards|length }};" aria-label="Votar {{ card }}" aria-pressed="false" onclick="castVote('{{ card }}', this)" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
+                    <button class="poker-card {% if card == 'Coffee' %}is-wide-value{% endif %}" type="button" style="--card-index: {{ forloop.counter0 }}; --card-total: {{ deck_cards|length }};" aria-label="Votar {{ card }}" aria-pressed="false" data-card="{{ card }}" {% if room.voting_status == 'revealed' %}disabled{% endif %}><span>{{ card }}</span></button>
                 {% endfor %}
             </div>
             <div class="throw-tray" id="throw-tray" role="group" aria-label="Objeto para lanzar" {% if not room.allow_playful_actions %}hidden{% endif %}>
@@ -203,7 +203,7 @@
 </section>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 const publicId = "{{ room.public_id }}";
 const myParticipantId = {{ participant.id }};
 const isFacilitator = {{ is_owner|yesno:"true,false" }};
@@ -213,6 +213,11 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 const STAGGER = 70;
 let ws;
 let myCurrentVote = null;
+/* Lo último que el servidor dice que tengo. La selección de carta es optimista —se
+   pinta antes de que conteste nadie—, así que si la acción se rechaza hay que
+   deshacerla: sin esto, un voto refusado se queda pintado y la mesa y tu pantalla
+   dicen cosas distintas. */
+let confirmedVote = null;
 let currentIssue = null;
 let allowPlayful = {{ room.allow_playful_actions|yesno:"true,false" }};
 let selectedItem = '{{ throwables.0.0 }}';
@@ -378,6 +383,18 @@ function applyIdentity(seat, participant) {
     if (face && participant.avatar) face.setAttribute('href', '#face-' + participant.avatar);
 }
 
+/* El sprite es SVG, así que sus nodos necesitan su propio espacio de nombres:
+   createElement('use') crea un elemento HTML desconocido que no dibuja nada. */
+function svgSymbol(viewBox, href) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', viewBox);
+    const use = document.createElementNS(NS, 'use');
+    use.setAttribute('href', href);
+    svg.append(use);
+    return svg;
+}
+
 function createParticipantCard(participant) {
     const seat = document.createElement('article');
     seat.className = 'table-seat is-thinking';
@@ -386,16 +403,35 @@ function createParticipantCard(participant) {
     const figure = document.createElement('div');
     figure.className = 'seat-figure';
     const isMe = participant.id === myParticipantId;
-    const face = '<svg viewBox="0 0 30 22" aria-hidden="true"><use href="#face-sereno"></use></svg>';
-    figure.innerHTML =
-        '<span class="seat-pet" aria-hidden="true">' +
-            '<svg viewBox="0 0 40 40"><use href="#pet-gato"></use></svg>' +
-            '<span class="seat-zzz">z</span></span>' +
-        (isMe
-            ? '<span class="seat-avatar" aria-hidden="true">' + face + '</span>'
-            : '<button class="seat-avatar" type="button" data-throw-target="' + participant.id +
-              '" aria-label="Lanzar algo a ' + String(participant.display_name).replace(/"/g, '') +
-              '">' + face + '</button>');
+
+    /* Construido nodo a nodo, no con innerHTML. El nombre lo escribe un tercero y
+       aquí acababa dentro de un atributo con una única defensa: borrar comillas
+       dobles. Funcionaba —un valor entrecomillado vuelve inerte a `<` y a `>`— pero
+       era una lista negra en el único sink de HTML del proyecto, a un refactor de
+       distancia de ser XSS almacenado para toda la sala. `setAttribute` no tiene
+       contexto del que escapar. */
+    const pet = document.createElement('span');
+    pet.className = 'seat-pet';
+    pet.setAttribute('aria-hidden', 'true');
+    pet.append(svgSymbol('0 0 40 40', '#pet-gato'));
+    const zzz = document.createElement('span');
+    zzz.className = 'seat-zzz';
+    zzz.textContent = 'z';
+    pet.append(zzz);
+
+    let avatar;
+    if (isMe) {
+        avatar = document.createElement('span');
+        avatar.setAttribute('aria-hidden', 'true');
+    } else {
+        avatar = document.createElement('button');
+        avatar.type = 'button';
+        avatar.dataset.throwTarget = participant.id;
+        avatar.setAttribute('aria-label', 'Lanzar algo a ' + participant.display_name);
+    }
+    avatar.className = 'seat-avatar';
+    avatar.append(svgSymbol('0 0 30 22', '#face-sereno'));
+    figure.append(pet, avatar);
     const card = document.createElement('div');
     card.className = 'participant-card';
     const inner = document.createElement('div');
@@ -412,6 +448,13 @@ function createParticipantCard(participant) {
     const name = document.createElement('div');
     name.className = 'seat-name';
     name.textContent = participant.display_name;
+    if (participant.is_facilitator) {
+        const crown = document.createElement('span');
+        crown.className = 'seat-crown';
+        crown.title = 'Lleva esta sala';
+        crown.textContent = 'Facilita';
+        name.append(crown);
+    }
     if (isMe) {
         const me = document.createElement('span');
         me.textContent = 'Tú';
@@ -431,8 +474,18 @@ function createParticipantCard(participant) {
         reminder.type = 'button';
         reminder.textContent = 'Recordar';
         reminder.hidden = true;
-        reminder.addEventListener('click', () => remindParticipant(participant.id));
+        reminder.dataset.remind = participant.id;
         seat.append(reminder);
+
+        const expel = document.createElement('button');
+        expel.className = 'seat-remove';
+        expel.type = 'button';
+        expel.textContent = '×';
+        expel.dataset.remove = participant.id;
+        expel.dataset.name = participant.display_name;
+        expel.setAttribute('aria-label', 'Expulsar a ' + participant.display_name + ' de la sala');
+        expel.title = 'Expulsar a ' + participant.display_name;
+        seat.append(expel);
     }
     return seat;
 }
@@ -566,10 +619,10 @@ function renderDeck(cards) {
         button.setAttribute('aria-label', 'Votar ' + card);
         button.setAttribute('aria-pressed', 'false');
         button.disabled = votingStatus === 'revealed';
+        button.dataset.card = card;
         const value = document.createElement('span');
         value.textContent = card;
         button.append(value);
-        button.addEventListener('click', () => castVote(card, button));
         deck.append(button);
     });
     syncSelectedCard();
@@ -1038,6 +1091,7 @@ function connect() {
             data.payload.participants.forEach(renderParticipant);
             layoutSeats();
             myCurrentVote = data.payload.your_vote;
+            confirmedVote = myCurrentVote;
             syncSelectedCard();
             renderActiveIssue(data.payload.active_issue);
             setResults(data.payload.results, data.payload.participants);
@@ -1050,6 +1104,7 @@ function connect() {
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) { seat.classList.add('is-offline'); seat.querySelector('.seat-state').textContent = 'Ausente'; }
         } else if (data.type === 'participant.voted') {
+            if (data.participant_id === myParticipantId) confirmedVote = data.has_voted ? myCurrentVote : null;
             const seat = document.getElementById('participant-' + data.participant_id);
             if (seat) renderParticipant({id: data.participant_id, has_voted: data.has_voted, is_online: true, current_vote: null});
         } else if (data.type === 'participant.reminded') {
@@ -1119,7 +1174,16 @@ function connect() {
             currentIssue = null;
             renderActiveIssue(null);
             updateControls(false);
-        } else if (data.type === 'error') showToast(data.message || 'No se pudo completar la acción.', true);
+        } else if (data.type === 'room.closed') {
+            /* El facilitador cerró la sala. Recargar deja que la vista decida qué ve
+               cada uno: él sigue viéndola, el resto encuentra la puerta. */
+            showToast('El facilitador cerró esta sala.', true);
+            wasRemoved = true;
+            window.setTimeout(() => window.location.reload(), 1500);
+        } else if (data.type === 'error') {
+            if (myCurrentVote !== confirmedVote) { myCurrentVote = confirmedVote; syncSelectedCard(); }
+            showToast(data.message || 'No se pudo completar la acción.', true);
+        }
     };
     ws.onclose = event => {
         status.classList.remove('is-live');
@@ -1165,8 +1229,29 @@ function finishIssue() {
 /* One delegated listener for the seats, so it keeps working for seats that arrive
    over the WebSocket. */
 document.getElementById('participants-list').addEventListener('click', event => {
-    const button = event.target.closest('.seat-avatar[data-throw-target]');
-    if (button && !button.disabled) throwAt(button.dataset.throwTarget);
+    const aim = event.target.closest('.seat-avatar[data-throw-target]');
+    if (aim && !aim.disabled) { throwAt(aim.dataset.throwTarget); return; }
+    const remind = event.target.closest('.seat-reminder[data-remind]');
+    if (remind) { remindParticipant(Number(remind.dataset.remind)); return; }
+    const remove = event.target.closest('.seat-remove[data-remove]');
+    if (remove) removeParticipant(Number(remove.dataset.remove), remove.dataset.name || '');
+});
+
+/* Delegado también aquí: la lista de historias se redibuja, y las cartas se vuelven a
+   repartir enteras cuando cambia la baraja. */
+document.getElementById('room-issues').addEventListener('click', event => {
+    const button = event.target.closest('.issue-activate[data-activate-issue]');
+    if (button) activateIssue(Number(button.dataset.activateIssue));
+});
+document.getElementById('deck').addEventListener('click', event => {
+    const card = event.target.closest('.poker-card');
+    if (card && !card.disabled) castVote(card.dataset.card, card);
+});
+
+[['reveal-button', revealRoom], ['reset-button', resetRoom],
+ ['finish-issue-button', finishIssue]].forEach(([id, accion]) => {
+    const button = document.getElementById(id);
+    if (button) button.addEventListener('click', accion);
 });
 
 /* Left and right move between faces around the table, on top of plain Tab. */

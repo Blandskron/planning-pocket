@@ -90,20 +90,18 @@ class PokerRoom(models.Model):
         return self.participants.filter(removed_at__isnull=True)
 
     def close_room(self):
-        """Transitions the room to a closed state, preventing further interaction."""
+        """Transitions the room to a closed state, preventing further interaction.
+
+        El recreo se cierra con la sala. Dejarlo abierto es un estado que no existe
+        —gente paseando por una sala cerrada— y era la vía por la que `player.move`,
+        que es la única acción que no pasa por `rooms/services.py`, seguía
+        retransmitiendo posiciones después del cierre.
+        """
         if self.status != 'closed':
             self.status = 'closed'
+            self.recess_open = False
             self.closed_at = timezone.now()
-            self.save(update_fields=['status', 'closed_at'])
-
-    def reset_voting(self):
-        """
-        Clears all participant votes and transitions the room back to 'voting' state.
-        This is typically called to start a new estimation round.
-        """
-        self.voting_status = 'voting'
-        self.save(update_fields=['voting_status'])
-        self.active_participants.update(current_vote=None, throws_this_round=0)
+            self.save(update_fields=['status', 'recess_open', 'closed_at'])
 
     def __str__(self):
         return f"{self.name} ({self.public_id})"

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- Copyright (c) 2026 Blandskron. All rights reserved. -->
+{% comment %}
+Sin `extends`: si lo que falla es la base de datos o un context processor, extender
+base.html falla también y el usuario ve la página de error del servidor. Una 500 tiene
+que poder renderizarse sin nada detrás, así que va con estilos propios y mínimos.
+{% endcomment %}
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algo se rompió · Planning Pocket</title>
+    <style>
+        :root { color-scheme: dark; }
+        body {
+            min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 1.5rem;
+            background: linear-gradient(168deg, #202b70 0%, #302665 68%, #2b0d33 100%);
+            color: #fff; font-family: Inter, ui-sans-serif, system-ui, sans-serif; text-align: center;
+        }
+        main { max-width: 32rem; }
+        h1 { margin: 0 0 .75rem; font-size: 2rem; letter-spacing: -.035em; }
+        p { margin: 0 0 1.75rem; color: rgba(255, 255, 255, .72); line-height: 1.55; }
+        a {
+            display: inline-block; padding: .78rem 1.4rem; border-radius: 999px;
+            color: #2b0010; background: #ff80bd; font-weight: 750; text-decoration: none;
+        }
+        span {
+            display: block; margin-bottom: .7rem; color: #ff80bd;
+            font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <span>Error 500</span>
+        <h1>Algo se rompió de nuestro lado</h1>
+        <p>No es culpa tuya. Si estabas en una sala, vuelve a abrir el enlace: la votación sigue guardada en el servidor y nadie ha perdido su carta.</p>
+        <a href="/">Volver al inicio</a>
+    </main>
+</body>
+</html>

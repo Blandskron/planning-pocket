@@ -5,6 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from rooms.models import Issue, PokerRoom
+from rooms.services import reset_round
 
 User = get_user_model()
 
@@ -46,8 +47,8 @@ class TestIssues:
         issue1.save()
 
         self.room.active_issue = None
-        self.room.reset_voting()
         self.room.save()
+        reset_round(self.room.id, self.room.owner)
 
         self.room.refresh_from_db()
         issue1.refresh_from_db()

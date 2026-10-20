@@ -5,6 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from rooms.models import Participant, PokerRoom
+from rooms.services import reset_round
 
 User = get_user_model()
 
@@ -39,7 +40,7 @@ class TestVotingEngine:
         # Mock what the consumer will send when someone casts a vote
         # It should NOT send the value '5' to others.
         from rooms.consumers import PokerConsumer
-        data = PokerConsumer._get_participant_state(self.participant1, self.room)
+        data = PokerConsumer._participant_state(self.participant1, self.room)
         assert data['id'] == self.participant1.id
         assert data['has_voted'] is True
         assert 'current_vote' not in data or data['current_vote'] is None
@@ -52,7 +53,7 @@ class TestVotingEngine:
         self.room.save()
 
         from rooms.consumers import PokerConsumer
-        data = PokerConsumer._get_participant_state(self.participant1, self.room)
+        data = PokerConsumer._participant_state(self.participant1, self.room)
         assert data['id'] == self.participant1.id
         assert data['has_voted'] is True
         assert data['current_vote'] == '5'
@@ -63,7 +64,7 @@ class TestVotingEngine:
         self.room.voting_status = 'revealed'
         self.room.save()
 
-        self.room.reset_voting()
+        reset_round(self.room.id, self.room.owner)
         self.room.refresh_from_db()
         self.participant1.refresh_from_db()
 

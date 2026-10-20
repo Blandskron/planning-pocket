@@ -2,10 +2,15 @@
 
 import json
 import time
+from collections import deque
+from importlib import import_module
 from json import JSONDecodeError
+from types import SimpleNamespace
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.conf import settings
+from django.contrib.auth import get_user as auth_get_user
 from django.db import transaction
 from django.db.models import F
 
@@ -37,6 +42,30 @@ class PokerConsumer(AsyncWebsocketConsumer):
     # intermediate position instead of building a backlog for everyone else.
     MOVE_MIN_INTERVAL = 0.11
 
+    # Todo lo que escribe en la base pasa por esta ventana. Hasta ahora la tenían las
+    # acciones decorativas —lanzar espera 2,5 s, moverse 110 ms— y no la tenía la cara:
+    # un cliente podía disparar 300 `vote.cast` seguidos, cada uno con su
+    # `SELECT FOR UPDATE` sobre la sala y su reparto a toda la mesa, sin un solo error.
+    # Ocho en tres segundos deja indeciso a cualquiera y corta la inundación.
+    WRITE_WINDOW_SECONDS = 3.0
+    WRITE_MAX_IN_WINDOW = 8
+
+    # Acciones sujetas a la ventana: las que tocan la base. `player.move` queda fuera
+    # porque no escribe y ya tiene su propio freno.
+    THROTTLED_ACTIONS = frozenset({
+        "vote.cast",
+        "participant.set_identity",
+        "participant.remind",
+        "participant.remove",
+        "room.reveal",
+        "room.reset",
+        "room.set_playful",
+        "room.set_recess",
+        "room.set_deck",
+        "issue.activate",
+        "issue.finish",
+    })
+
     async def connect(self):
         self.public_id = self.scope["url_route"]["kwargs"]["public_id"]
         self.room_group_name = f"room_{self.public_id}"
@@ -47,6 +76,8 @@ class PokerConsumer(AsyncWebsocketConsumer):
 
         self.last_move_at = 0.0
         self.recess_open = False
+        self.room_active = True
+        self.write_times = deque()
         self.was_offline = await self.participant_connected()
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
@@ -111,6 +142,12 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "room.set_deck",
         }:
             await self.send_error("unknown_action", "This action is not supported.")
+            return
+
+        if event_type in self.THROTTLED_ACTIONS and not self.allow_write():
+            await self.send_error(
+                "too_many_actions", "Vas demasiado rápido. Espera un momento y repite."
+            )
             return
 
         if event_type == "vote.cast":
@@ -288,9 +325,23 @@ class PokerConsumer(AsyncWebsocketConsumer):
             {"type": "room.playful_changed", "allow_playful_actions": allowed},
         )
 
+    def allow_write(self):
+        """Ventana deslizante por conexión para las acciones que escriben."""
+        now = time.monotonic()
+        while self.write_times and now - self.write_times[0] > self.WRITE_WINDOW_SECONDS:
+            self.write_times.popleft()
+        if len(self.write_times) >= self.WRITE_MAX_IN_WINDOW:
+            return False
+        self.write_times.append(now)
+        return True
+
     async def handle_move(self, data):
         """Relay a position during the recess. Nothing here touches the database."""
-        if not self.recess_open:
+        # `room_active` además del recreo: esta es la única acción que no pasa por
+        # `rooms/services.py`, así que es la única que no hereda `_require_active_room`.
+        # Sin esto, cerrar la sala con el recreo abierto dejaba a todo el mundo
+        # paseando por una sala cerrada.
+        if not self.room_active or not self.recess_open:
             return
 
         x = data.get("x")
@@ -407,7 +458,28 @@ class PokerConsumer(AsyncWebsocketConsumer):
         state = await self.get_room_state()
         # Cached so handle_move can reject positions without a query per frame.
         self.recess_open = state["room"]["recess_open"]
+        self.room_active = state["room"]["status"] == "active"
         await self.send(text_data=json.dumps({"type": "room.state", "payload": state}))
+
+    def live_actor(self):
+        """El usuario tal y como está AHORA, no como estaba al abrir el socket.
+
+        `scope["user"]` lo resuelve `AuthMiddlewareStack` una sola vez, al conectar, y
+        es lo que leían todas las comprobaciones de facilitador. Con eso, cerrar sesión
+        no le quitaba a nadie el control de la sala hasta que cerrase la pestaña: seguía
+        pudiendo revelar, reiniciar, cambiar la baraja y expulsar. Ahora la sesión se
+        relee del almacén en cada acción de facilitador.
+
+        `auth.get_user` es quien decide, no nosotros: comprueba además el hash de
+        sesión, así que un cambio de contraseña también corta el socket abierto.
+        """
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            return None
+        engine = import_module(settings.SESSION_ENGINE)
+        user = auth_get_user(SimpleNamespace(session=engine.SessionStore(session_key)))
+        return user if user.is_authenticated else None
 
     @database_sync_to_async
     def get_participant(self):
@@ -418,7 +490,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
 
         # `active_participants`, no `participants`: la fila del expulsado sigue ahí
         # a propósito, y buscarla sin filtrar le devolvería el socket al reconectar.
-        user = self.scope.get("user")
+        user = self.live_actor()
         if user and user.is_authenticated:
             return room.active_participants.filter(user=user).first()
 
@@ -457,30 +529,30 @@ class PokerConsumer(AsyncWebsocketConsumer):
     def reveal_room(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
         recess_was_open = room.recess_open
-        _, results = reveal_round(room.id, self.scope.get("user"))
+        _, results = reveal_round(room.id, self.live_actor())
         return results, recess_was_open
 
     @database_sync_to_async
     def reset_room(self):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        reset_round(room.id, self.scope.get("user"))
+        reset_round(room.id, self.live_actor())
 
     @database_sync_to_async
     def activate_issue(self, issue_id):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        issue = activate_room_issue(room.id, issue_id, self.scope.get("user"))
+        issue = activate_room_issue(room.id, issue_id, self.live_actor())
         return self.serialize_issue(issue)
 
     @database_sync_to_async
     def finish_active_issue(self, final_result):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        issue = finish_active_issue(room.id, final_result, self.scope.get("user"))
+        issue = finish_active_issue(room.id, final_result, self.live_actor())
         return self.serialize_issue(issue)
 
     @database_sync_to_async
     def remind_participant(self, participant_id):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        participant = remind_participant(room.id, participant_id, self.scope.get("user"))
+        participant = remind_participant(room.id, participant_id, self.live_actor())
         return {"id": participant.id}
 
     @database_sync_to_async
@@ -492,7 +564,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def update_playful(self, enabled):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        room = set_playful_actions(room.id, enabled, self.scope.get("user"))
+        room = set_playful_actions(room.id, enabled, self.live_actor())
         return room.allow_playful_actions
 
     @database_sync_to_async
@@ -504,7 +576,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def remove_participant(self, participant_id):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        participant = remove_participant(room.id, participant_id, self.scope.get("user"))
+        participant = remove_participant(room.id, participant_id, self.live_actor())
         return {"id": participant.id}
 
     @database_sync_to_async
@@ -515,7 +587,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
             room.active_participants.exclude(current_vote__isnull=True)
             .values_list("id", "current_vote")
         )
-        room = set_deck(room.id, expanded, self.scope.get("user"))
+        room = set_deck(room.id, expanded, self.live_actor())
         kept = set(deck_values(room.deck))
         return {
             "deck": list(deck_values(room.deck)),
@@ -528,7 +600,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def update_recess(self, enabled):
         room = PokerRoom.objects.get(public_id=self.public_id)
-        room = set_recess(room.id, enabled, self.scope.get("user"))
+        room = set_recess(room.id, enabled, self.live_actor())
         return room.recess_open
 
     @database_sync_to_async
@@ -543,7 +615,7 @@ class PokerConsumer(AsyncWebsocketConsumer):
     def get_room_state(self):
         room = PokerRoom.objects.select_related("active_issue").get(public_id=self.public_id)
         results = calculate_results(room) if room.voting_status == "revealed" else None
-        user = self.scope.get("user")
+        user = self.live_actor()
         is_facilitator = bool(user and user.is_authenticated and user.pk == room.owner_id)
         return {
             "room": {
@@ -581,6 +653,13 @@ class PokerConsumer(AsyncWebsocketConsumer):
             "display_name": participant.display_name,
             "has_voted": participant.current_vote is not None,
             "is_online": participant.connection_count > 0,
+            # Quién lleva la sala no es secreto —sus controles se ven— pero hasta ahora
+            # sólo lo sabía el propio facilitador: la insignia se renderizaba bajo
+            # `{% if is_owner %}` en su barra. Para el resto de la mesa, cualquiera
+            # podía ponerse su nombre y nadie podía distinguirlos. Desde que puede
+            # expulsar, eso dejó de ser cosmético.
+            "is_facilitator": participant.user_id is not None
+            and participant.user_id == room.owner_id,
             # Cosmetic identity is not secret: it is needed to draw the ring while
             # voting is still open, and reveals nothing about the vote itself.
             **participant.identity,
@@ -589,11 +668,6 @@ class PokerConsumer(AsyncWebsocketConsumer):
             participant.current_vote if room.voting_status == "revealed" else None
         )
         return state
-
-    @staticmethod
-    def _get_participant_state(participant, room):
-        """Backward-compatible helper for existing privacy tests."""
-        return PokerConsumer._participant_state(participant, room)
 
     async def participant_joined(self, event):
         await self.send(
@@ -713,6 +787,16 @@ class PokerConsumer(AsyncWebsocketConsumer):
 
     async def room_resetted(self, event):
         await self.send(text_data=json.dumps({"type": "room.resetted"}))
+
+    async def room_closed(self, event):
+        """Cerrar una sala tiene que alcanzar a quien ya está dentro.
+
+        Antes el cierre era sólo una fila en la base: los sockets abiertos seguían
+        vivos y nadie en la mesa se enteraba hasta que recargaba por su cuenta.
+        """
+        self.room_active = False
+        self.recess_open = False
+        await self.send(text_data=json.dumps({"type": "room.closed"}))
 
     async def issue_activated(self, event):
         await self.send(text_data=json.dumps({"type": "issue.activated", "issue": event["issue"]}))

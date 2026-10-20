@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% comment %}
+Django usa esta plantilla por sí solo cuando no hay handler404. El producto entero
+entra por un enlace compartido, así que teclear mal el enlace es el error más probable
+que existe: lo que había antes devolvía {"error": "Not found"} en JSON crudo.
+{% endcomment %}
+{% block title %}Aquí no hay nada · Planning Pocket{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
+{% block content %}
+<section class="decision-card"><span class="decision-icon" aria-hidden="true">?</span><span class="eyebrow">Error 404</span><h1>Aquí no hay nada</h1><p>Puede que el enlace esté mal copiado o que la sala ya no exista. Si te lo pasaron por chat, pide que te lo manden otra vez: el último carácter se pierde con facilidad.</p><a href="{% url 'dashboard' %}" class="button button-primary">Ir al inicio</a></section>
+{% endblock %}
