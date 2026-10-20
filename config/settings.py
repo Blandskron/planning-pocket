@@ -199,11 +199,28 @@ MAILERS = {
 ASGI_APPLICATION = 'config.asgi.application'
 
 if os.environ.get('REDIS_URL'):
+    # `socket_timeout` no es afinación: sin él la sala no funciona.
+    #
+    # channels_redis espera mensajes con BZPOPMIN y un bloqueo de 5 s
+    # (`RedisChannelLayer.brpop_timeout`) y no le pasa ningún tiempo de lectura a
+    # redis-py. redis-py 8.x aplica entonces uno que no deja holgura sobre ese
+    # bloqueo, así que el cliente abandona justo antes de que conteste el servidor:
+    # cada WebSocket moría a los ~6 s y el navegador reconectaba en bucle.
+    # Reproducido contra un Redis real: tal cual, TimeoutError a los 5,2 s; con un
+    # tiempo de lectura holgado, respuesta correcta a los 5,0 s.
+    #
+    # Tiene que quedar por encima de `brpop_timeout`. Los tests no lo ven porque
+    # corren con InMemoryChannelLayer: lo cubre `rooms/test_channel_layer.py`.
+    REDIS_SOCKET_TIMEOUT = int(os.environ.get('REDIS_SOCKET_TIMEOUT', '20'))
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [os.environ.get('REDIS_URL')],
+                "hosts": [{
+                    "address": os.environ.get('REDIS_URL'),
+                    "socket_timeout": REDIS_SOCKET_TIMEOUT,
+                    "socket_connect_timeout": 5,
+                }],
             },
         },
     }
