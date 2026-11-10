@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Las dependencias primero: cambian mucho menos que el código, y así la capa se reutiliza.
 COPY requirements.txt /app/
-RUN pip install -r requirements.txt
+RUN AUTOBAHN_USE_NVX=0 pip install -r requirements.txt
 
 # Lo que NO entra aquí está en .dockerignore, y eso incluye el .env de quien construye.
 COPY . /app/
