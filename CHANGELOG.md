@@ -6,6 +6,11 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Sin publicar]
 
+## [1.0.1] - 2026-11-10
+
+Release final de mantenimiento. Se desactivaron las actualizaciones automáticas de
+dependencias para conservar esta versión sin cambios futuros.
+
 ## [1.0.0] - 2026-09-03
 
 Primera versión publicada. La aplicación ya estaba completa; lo que faltaba era poder
@@ -58,5 +63,6 @@ llamarla por su nombre y validar cada cambio antes de que llegue a `main`.
 - `djangorestframework`, que estaba instalado y declarado sin ningún uso: no hay
   serializadores, vistas ni rutas de DRF en el proyecto.
 
-[Sin publicar]: https://github.com/Blandskron/planning-pocket/compare/v1.0.0...HEAD
+[Sin publicar]: https://github.com/Blandskron/planning-pocket/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Blandskron/planning-pocket/releases/tag/v1.0.1
 [1.0.0]: https://github.com/Blandskron/planning-pocket/releases/tag/v1.0.0
